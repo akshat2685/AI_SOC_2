@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShieldAI SOC — AI Security Operations Center</title>
+    <meta name="description" content="AI-powered Security Operations Center with tiered autonomous response, approval workflows, and threat intelligence.">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+</head>
+<body>
+
+    <!-- LOGIN OVERLAY -->
+    <div class="login-overlay" id="login-overlay">
+        <div class="login-card">
+            <div class="login-logo">
+                <span class="login-logo-icon">&#x1F6E1;&#xFE0F;</span>
+                <h1>ShieldAI</h1>
+                <p>Security Operations Center</p>
+            </div>
+            <form id="login-form" autocomplete="off">
+                <div class="login-field">
+                    <label for="login-username">Username</label>
+                    <input type="text" id="login-username" placeholder="admin" value="admin" required>
+                </div>
+                <div class="login-field">
+                    <label for="login-password">Password</label>
+                    <input type="password" id="login-password" placeholder="••••••" value="admin" required>
+                </div>
+                <button type="submit" class="login-btn" id="login-btn">Sign In</button>
+                <p class="login-error" id="login-error"></p>
+            </form>
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="logo">
+            <span class="logo-icon">&#x1F6E1;&#xFE0F;</span>
+            <div>
+                <div class="logo-text">ShieldAI</div>
+                <div class="logo-sub">SOC Platform</div>
+            </div>
+        </div>
+        <ul class="nav" id="main-nav">
+            <li data-view="executive">
+                <span class="nav-icon">&#x1F4BC;</span> Executive
+            </li>
+            <li class="active" data-view="dashboard">
+                <span class="nav-icon">&#x1F4CA;</span> Dashboard
+            </li>
+            <li data-view="apikeys">
+                <span class="nav-icon">&#x1F511;</span> API Keys
+            </li>
+            <li data-view="incidents">
+                <span class="nav-icon">&#x1F516;</span> Incidents
+                <span class="nav-badge" id="nav-incident-count">0</span>
+            </li>
+            <li data-view="alerts">
+                <span class="nav-icon">&#x1F6A8;</span> Alerts
+                <span class="nav-badge" id="nav-alert-count">0</span>
+            </li>
+            <li data-view="approvals">
+                <span class="nav-icon">&#x2705;</span> Approvals
+                <span class="nav-badge nav-badge-warn" id="nav-approval-count">0</span>
+            </li>
+            <li data-view="blocks">
+                <span class="nav-icon">&#x1F6D1;</span> Active Blocks
+            </li>
+            <li data-view="emails">
+                <span class="nav-icon">&#x1F4E7;</span> Email Drafts
+                <span class="nav-badge nav-badge-teal" id="nav-email-count">0</span>
+            </li>
+            <li data-view="responses">
+                <span class="nav-icon">&#x26A1;</span> Response Log
+            </li>
+            <li data-view="audit">
+                <span class="nav-icon">&#x1F4DC;</span> Audit Log
+            </li>
+            <li data-view="feed">
+                <span class="nav-icon">&#x1F4E1;</span> Live Feed
+            </li>
+        </ul>
+        <div class="sidebar-footer">
+            <div class="user-info" id="user-info">
+                <span class="user-role" id="user-role">analyst</span>
+                <span class="user-name" id="user-name">admin</span>
+                <button class="logout-btn" id="logout-btn" title="Logout">&#x23FB;</button>
+            </div>
+            <div class="ws-status" id="ws-status">
+                <span class="ws-dot disconnected"></span> Disconnected
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- EXECUTIVE VIEW -->
+        <div class="view" id="view-executive">
+            <header>
+                <h1>Executive Reporting</h1>
+                <div class="header-actions">
+                    <button class="btn" onclick="window.open(`${API_BASE}/api/v1/reports/digest?period=week`)">&#x1F4C4; Weekly Digest</button>
+                    <button class="btn" onclick="window.open(`${API_BASE}/api/v1/reports/digest?period=month`)">&#x1F4C4; Monthly Digest</button>
+                </div>
+            </header>
+            
+            <div class="stats-grid">
+                <div class="stat-card" style="background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);">
+                    <div class="stat-icon">&#x1F3AF;</div>
+                    <div><h3>Platform Risk Score</h3><p id="exec-risk-score">0</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#x23F1;</div>
+                    <div><h3>Mean Time To Detect</h3><p id="exec-mttd">0s</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#x1F6A8;</div>
+                    <div><h3>Mean Time To Triage</h3><p id="exec-mttr">0s</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#x1F4B0;</div>
+                    <div><h3>Abuse Cost Prevented</h3><p id="exec-cost-prevented">$0</p></div>
+                </div>
+            </div>
+
+            <div class="card chart-card" style="margin-top: 1.5rem;">
+                <h2>Threat Trends (30 Days)</h2>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="executive-trend-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD VIEW -->
+        <div class="view active" id="view-dashboard">
+            <header>
+                <h1>Security Overview</h1>
+                <div class="status-badge pulse">Monitoring Active</div>
+            </header>
+
+            <div class="stats-grid">
+                <div class="stat-card" style="background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);">
+                    <div class="stat-icon">&#x1F516;</div>
+                    <div><h3>Incidents</h3><p id="total-incidents">0</p></div>
+                </div>
+                <div class="stat-card stat-alerts">
+                    <div class="stat-icon">&#x1F6A8;</div>
+                    <div><h3>Alerts</h3><p id="total-alerts">0</p></div>
+                </div>
+                <div class="stat-card stat-blocked">
+                    <div class="stat-icon">&#x1F6D1;</div>
+                    <div><h3>Blocked</h3><p id="total-blocked">0</p></div>
+                </div>
+                <div class="stat-card stat-emails">
+                    <div class="stat-icon">&#x2705;</div>
+                    <div><h3>Pending</h3><p id="total-pending">0</p></div>
+                </div>
+                <div class="stat-card stat-logs">
+                    <div class="stat-icon">&#x1F4CB;</div>
+                    <div><h3>Events</h3><p id="total-logs">0</p></div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="card chart-card">
+                    <h2>Attack Type Distribution</h2>
+                    <div class="chart-container"><canvas id="attack-dist-chart"></canvas></div>
+                </div>
+                <div class="card chart-card">
+                    <h2>Threat Severity Overview</h2>
+                    <div class="chart-container"><canvas id="severity-chart"></canvas></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Recent Alerts</h2>
+                <div class="table-container">
+                    <table id="alerts-table">
+                        <thead><tr><th>Time</th><th>Threat</th><th>Type</th><th>Attacker IP</th><th>Severity</th><th>Confidence</th><th>AI Summary</th><th>Action</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- API KEYS VIEW -->
+        <div class="view" id="view-apikeys">
+            <header>
+                <h1>API Keys Integration</h1>
+                <div class="status-badge pulse" style="background:rgba(59,130,246,0.1);color:#3b82f6;border-color:rgba(59,130,246,0.2);">Developer Tools</div>
+            </header>
+            <div class="card">
+                <h2>Generate New Key</h2>
+                <form id="api-key-form" style="display: flex; gap: 1rem; margin-top: 1rem; max-width: 600px;">
+                    <input type="text" id="api-key-name" placeholder="e.g. Production Website Backend" required style="flex: 1; padding: 0.75rem; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; border-radius: 4px;">
+                    <button type="submit" class="btn" style="background: var(--primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; cursor: pointer; font-weight: 600;">Generate Key</button>
+                </form>
+            </div>
+            
+            <div class="card" id="new-key-display-card" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3);">
+                <h3 style="color: #10b981; margin-bottom: 0.5rem;">Key Generated Successfully!</h3>
+                <p style="margin-bottom: 1rem; font-size: 0.9rem; color: #a1a1aa;">Copy this key now. For security reasons, you won't be able to see it again.</p>
+                <div style="display: flex; gap: 0.5rem; align-items: center; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 4px; font-family: monospace; word-break: break-all;" id="new-key-value">
+                    <!-- Key value here -->
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Active API Keys</h2>
+                <div class="table-container">
+                    <table id="apikeys-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Key Prefix</th>
+                                <th>Created</th>
+                                <th>Last Used</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Quick Integration Snippet (Node.js SDK)</h2>
+                <p style="color: #a1a1aa; margin-bottom: 1rem;">Paste this code directly into your Node.js/Express backend to protect your endpoints with one line of code.</p>
+                <pre style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 4px; overflow-x: auto; color: #e2e8f0; font-family: monospace; font-size: 0.85rem;" id="node-sdk-snippet">
+// 1. Save this helper as 'shield_soc.js'
+const axios = require('axios');
+
+const SOC_URL = 'http://YOUR_SOC_IP:8000'; // Update with your SOC URL
+const API_KEY = 'YOUR_API_KEY_HERE';
+
+async function protectRequest(req) {
+    const payload = {
+        event_type: req.path.includes('login') ? 'login' : 'api_call',
+        source_ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1',
+        user_id: req.body?.username || req.body?.email || req.user?.id || null,
+        status: 'pending',
+        device_id: req.cookies?.device_id || 'unknown',
+        user_agent: req.headers['user-agent'] || 'unknown',
+        endpoint: req.path,
+        method: req.method,
+        headers: req.headers
+    };
+
+    try {
+        const res = await axios.post(`${SOC_URL}/ingest`, payload, {
+            headers: { 'X-API-Key': API_KEY },
+            timeout: 800 // Fail open quickly if SOC is slow
+        });
+        return { action: 'ALLOW' };
+    } catch (err) {
+        if (err.response) {
+            if (err.response.status === 401) console.error('SOC API Key is invalid');
+            if (err.response.status === 403) return { action: 'BLOCK', detail: 'Suspicious IP' };
+            if (err.response.status === 429) return { action: 'RATE_LIMIT', detail: 'Rate limit exceeded' };
+        }
+        return { action: 'ALLOW' }; // Fail open
+    }
+}
+
+// 2. Express Middleware Usage Example:
+// app.use(async (req, res, next) => {
+//     const guard = await protectRequest(req);
+//     if (guard.action === 'BLOCK') return res.status(403).send('Forbidden: Blocked by ShieldAI SOC');
+//     if (guard.action === 'RATE_LIMIT') return res.status(429).send('Too Many Requests');
+//     next();
+// });
+                </pre>
+                
+                <h2 style="margin-top: 2rem;">Python SDK Integration Snippet</h2>
+                <pre style="background: rgba(0,0,0,0.4); padding: 1rem; border-radius: 4px; overflow-x: auto; color: #e2e8f0; font-family: monospace; font-size: 0.85rem;" id="python-sdk-snippet">
+# 1. Save this helper as 'shield_soc.py'
+import httpx
+
+SOC_URL = 'http://YOUR_SOC_IP:8000' # Update with your SOC URL
+API_KEY = 'YOUR_API_KEY_HERE'
+
+def protect_request(ip: str, path: str, method: str, user_agent: str = None, headers: dict = None, user_id: str = None) -> str:
+    payload = {
+        "event_type": "login" if "login" in path else "api_call",
+        "source_ip": ip,
+        "user_id": user_id,
+        "status": "pending",
+        "device_id": "unknown",
+        "user_agent": user_agent or "unknown",
+        "endpoint": path,
+        "method": method,
+        "headers": headers or {}
+    }
+    try:
+        resp = httpx.post(f"{SOC_URL}/ingest", json=payload, headers={"X-API-Key": API_KEY}, timeout=0.8)
+        if resp.status_code == 403:
+            return "BLOCK"
+        elif resp.status_code == 429:
+            return "RATE_LIMIT"
+    except Exception:
+        pass
+    return "ALLOW" # Fail open
+                </pre>
+            </div>
+        </div>
+
+        <!-- INCIDENTS VIEW -->
+        <div class="view" id="view-incidents">
+            <header><h1>All Correlated Incidents</h1></header>
+            <div class="card">
+                <div class="table-container">
+                    <table id="all-incidents-table">
+                        <thead><tr><th>ID</th><th>Time</th><th>Incident</th><th>Severity</th><th>Key Entity</th><th>Status</th><th>Verdict</th><th>Action</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ALERTS VIEW -->
+        <div class="view" id="view-alerts">
+            <header><h1>All Alerts</h1></header>
+            <div class="card">
+                <div class="table-container">
+                    <table id="all-alerts-table">
+                        <thead><tr><th>ID</th><th>Time</th><th>Threat</th><th>Type</th><th>IP</th><th>Severity</th><th>Confidence</th><th>Verdict</th><th>Action</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- APPROVALS VIEW -->
+        <div class="view" id="view-approvals">
+            <header><h1>Pending Approvals</h1><div class="status-badge pulse" style="background:rgba(245,158,11,0.1);color:#f59e0b;border-color:rgba(245,158,11,0.2);">Action Required</div></header>
+            <div class="card">
+                <div class="table-container">
+                    <table id="approvals-table">
+                        <thead><tr><th>ID</th><th>Time</th><th>Action</th><th>Tier</th><th>Target</th><th>Alert</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ACTIVE BLOCKS VIEW -->
+        <div class="view" id="view-blocks">
+            <header><h1>Active Blocks &amp; Restrictions</h1></header>
+            <div class="card">
+                <div class="table-container">
+                    <table id="blocks-table">
+                        <thead><tr><th>ID</th><th>Time</th><th>Action</th><th>Tier</th><th>Target</th><th>Expires</th><th>Approval</th><th>Actions</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- EMAIL DRAFTS VIEW -->
+        <div class="view" id="view-emails">
+            <header><h1>Deterrence Email Drafts</h1></header>
+            <div class="card">
+                <div class="table-container">
+                    <table id="emails-table">
+                        <thead><tr><th>ID</th><th>Time</th><th>Target IP</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- RESPONSE LOG VIEW -->
+        <div class="view" id="view-responses">
+            <header><h1>Autonomous Response Log</h1></header>
+            <div class="card"><div class="timeline" id="response-timeline"></div></div>
+        </div>
+
+        <!-- AUDIT LOG VIEW -->
+        <div class="view" id="view-audit">
+            <header><h1>Immutable Audit Log</h1></header>
+            <div class="card">
+                <div class="table-container">
+                    <table id="audit-table">
+                        <thead><tr><th>Time</th><th>Action</th><th>Tier</th><th>Target</th><th>Triggered By</th><th>Approval</th><th>Result</th><th>Notes</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIVE FEED VIEW -->
+        <div class="view" id="view-feed">
+            <header><h1>Live Event Feed</h1><div class="status-badge pulse">Streaming</div></header>
+            <div class="card live-feed-card"><div id="live-feed" class="live-feed"></div></div>
+        </div>
+
+        <!-- EXECUTIVE VIEW -->
+        <div class="view" id="view-executive">
+            <header>
+                <h1>Executive Dashboard</h1>
+                <div class="status-badge pulse" style="background:rgba(16,185,129,0.1);color:#10b981;border-color:rgba(16,185,129,0.2);">Board View</div>
+            </header>
+
+            <div class="card" style="background: linear-gradient(135deg, rgba(37,99,235,0.1) 0%, rgba(29,78,216,0.1) 100%); border: 1px solid rgba(37,99,235,0.3);">
+                <h2 style="color: #60a5fa; margin-bottom: 0.5rem;">AI Executive Summary</h2>
+                <p id="ai-executive-summary" style="font-size: 1.05rem; line-height: 1.6; color: #e2e8f0;">Generating summary...</p>
+            </div>
+
+            <div class="stats-grid" style="margin-top: 1rem;">
+                <div class="stat-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                    <div class="stat-icon">&#x1F3AF;</div>
+                    <div><h3>Posture Score</h3><p id="posture-score">0</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#x23F1;&#xFE0F;</div>
+                    <div><h3>MTTR (Hours)</h3><p id="mttr-score">0.0</p></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">&#x1F50D;</div>
+                    <div><h3>MTTD (Hours)</h3><p id="mttd-score">0.0</p></div>
+                </div>
+                <div class="stat-card stat-blocked">
+                    <div class="stat-icon">&#x26A0;&#xFE0F;</div>
+                    <div><h3>Asset Risk</h3><p id="asset-risk-score">0</p></div>
+                </div>
+            </div>
+
+            <div class="charts-grid" style="margin-top: 1rem;">
+                <div class="card chart-card">
+                    <h2>Threat Trends (Last 7 Days)</h2>
+                    <div class="chart-container"><canvas id="threat-trends-chart"></canvas></div>
+                </div>
+                <div class="card chart-card">
+                    <h2>Most Targeted IPs</h2>
+                    <div class="table-container" style="height: 100%; padding-top: 1rem;">
+                        <table id="top-targets-table">
+                            <thead><tr><th>IP Address</th><th>Alerts Count</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI CHAT PANEL -->
+    <div class="chat-panel" id="chat-panel">
+        <div class="chat-header" id="chat-toggle">
+            <span>&#x1F916; ShieldAI Assistant</span>
+            <span class="chat-minimize" id="chat-minimize-btn">&#x25BC;</span>
+        </div>
+        <div class="chat-body" id="chat-body">
+            <div class="chat-messages" id="chat-messages">
+                <div class="chat-msg chat-ai">Hi! I'm ShieldAI. Ask me anything — try "show all ATO attempts from last 24 hours" or "how many alerts are pending?"</div>
+            </div>
+            <div class="chat-input-bar">
+                <input type="text" id="chat-input" placeholder="Ask about alerts, IPs, attacks..." autocomplete="off">
+                <button id="chat-send">&#x27A4;</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- INVESTIGATION MODAL -->
+    <div class="modal-overlay" id="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modal-title">Investigation Workspace</h2>
+                <div class="modal-actions">
+                    <button class="btn-digest" onclick="window.open(API_BASE+'/digest/week','_blank')">&#x1F4CA; Weekly Digest</button>
+                    <button class="btn-pdf" id="btn-download-pdf">&#x1F4C4; PDF Report</button>
+                    <button class="modal-close" id="modal-close">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="modal-tabs">
+                    <button class="modal-tab active" data-tab="timeline">Timeline</button>
+                    <button class="modal-tab" data-tab="evidence">Evidence</button>
+                    <button class="modal-tab" data-tab="citations">Citations</button>
+                    <button class="modal-tab" data-tab="intel">Threat Intel</button>
+                    <button class="modal-tab" data-tab="report">Attacker Report</button>
+                    <button class="modal-tab" data-tab="email">Deterrence Email</button>
+                    <button class="modal-tab" data-tab="graph">Attack Graph</button>
+                    <button class="modal-tab" data-tab="case">Case Management</button>
+                </div>
+
+                <div class="modal-tab-content active" id="tab-timeline">
+                    <div class="investigation-timeline" id="investigation-timeline"></div>
+                </div>
+                <div class="modal-tab-content" id="tab-evidence">
+                    <div id="evidence-graph"></div>
+                </div>
+                <div class="modal-tab-content" id="tab-citations">
+                    <h3 style="margin-bottom:1rem;color:var(--text-bright);">Evidence Citations</h3>
+                    <div id="citations-content" class="citations-grid"></div>
+                </div>
+                <div class="modal-tab-content" id="tab-intel">
+                    <div id="intel-content"></div>
+                </div>
+                <div class="modal-tab-content" id="tab-report">
+                    <div class="report-content" id="report-content"></div>
+                </div>
+                <div class="modal-tab-content" id="tab-email">
+                    <div class="email-preview" id="email-preview"></div>
+                </div>
+                <div class="modal-tab-content" id="tab-graph">
+                    <div id="attack-graph-container" style="width: 100%; height: 500px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.5); border-radius: 8px;"></div>
+                </div>
+                <div class="modal-tab-content" id="tab-case">
+                    <h3 style="margin-bottom:1rem;color:var(--text-bright);">Case Management Workflow</h3>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="case-status" style="display:block;margin-bottom:0.5rem;color:var(--text-muted);">Current Status</label>
+                        <select id="case-status" style="width: 100%; padding: 0.5rem; background: var(--bg-card); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;">
+                            <option value="ACTIVE">Active</option>
+                            <option value="INVESTIGATING">Under Investigation</option>
+                            <option value="CONTAINED">Contained</option>
+                            <option value="CLOSED">Closed</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label for="case-notes" style="display:block;margin-bottom:0.5rem;color:var(--text-muted);">Analyst Notes</label>
+                        <textarea id="case-notes" rows="6" style="width: 100%; padding: 0.5rem; background: var(--bg-card); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px;" placeholder="Add findings, IOCs, and progress here..."></textarea>
+                    </div>
+                    <button class="btn" id="btn-save-case">Save Case Details</button>
+                </div>
+
+                <div class="verdict-bar">
+                    <span>Analyst Verdict:</span>
+                    <button class="verdict-btn verdict-tp" data-verdict="TRUE_POSITIVE">True Positive</button>
+                    <button class="verdict-btn verdict-fp" data-verdict="FALSE_POSITIVE">False Positive</button>
+                    <button class="verdict-btn verdict-bp" data-verdict="BENIGN">Benign</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

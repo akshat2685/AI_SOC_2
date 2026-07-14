@@ -1,0 +1,6 @@
+{
+  "name": "ShieldAI SOC",
+  "description": "AI-powered Security Operations Center with autonomous response, interactive threat modeling, and Gemini-based investigation co-pilot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

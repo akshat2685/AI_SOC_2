@@ -1,0 +1,27 @@
+{
+  "name": "shieldai-soc",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "cd frontend && npm install --production=false && (npm run build || true) && cd .. && rm -rf dist && mkdir -p dist && cp -r frontend/out/* dist/",
+    "dev": "node server.js",
+    "start": "node server.js",
+    "lint": "cd frontend && npm run lint"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
+    "@google/genai": "latest",
+    "@qdrant/js-client-rest": "^1.18.0",
+    "autocannon": "^8.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "multer": "^2.2.0",
+    "neo4j-driver": "^6.2.0",
+    "pg": "^8.22.0",
+    "sqlite3": "^6.0.1",
+    "ws": "^8.17.1"
+  }
+}

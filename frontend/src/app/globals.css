@@ -1,0 +1,344 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@800&family=Space+Mono:wght@400;700&family=Inter:wght@400;500&display=swap');
+@import "tailwindcss";
+
+:root {
+  --background: #090d16;
+  --foreground: #f8fafc;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  overflow-x: hidden;
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateY(-0.5rem) scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Custom scrollbar for dark mode */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #020617;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+
+
+
+:root {
+  --bg: #0d0d0f;
+  --ink: #f0f0f2;
+  --accent: #3b82f6;
+  --ink-faint: rgba(240, 240, 242, 0.1);
+  --ink-muted: rgba(240, 240, 242, 0.5);
+}
+
+.login-view-wrapper {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', sans-serif;
+  height: 100vh;
+  width: 100vw;
+  display: grid;
+  place-items: center;
+  background-image: 
+      radial-gradient(circle at 2px 2px, var(--ink-faint) 1px, transparent 0);
+  background-size: 32px 32px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+}
+
+.login-view-wrapper .container {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+  max-width: 480px;
+  padding: 2rem;
+  position: relative;
+}
+
+.login-view-wrapper .header {
+  margin-bottom: 3.5rem;
+  position: relative;
+}
+
+.login-view-wrapper .label-meta {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  margin-bottom: 0.5rem;
+  display: block;
+}
+
+.login-view-wrapper h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(2.5rem, 5vw, 3.5rem);
+  line-height: 0.9;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.login-view-wrapper .description {
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  line-height: 1.6;
+  border-left: 2px solid var(--accent);
+  padding-left: 1rem;
+}
+
+.login-view-wrapper .login-card {
+  background: #151518;
+  border: 1px solid var(--ink-faint);
+  padding: 2.5rem;
+  border-radius: 4px;
+}
+
+.login-view-wrapper .field-group {
+  margin-bottom: 1.5rem;
+}
+
+.login-view-wrapper label {
+  display: block;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+  margin-bottom: 0.75rem;
+}
+
+.login-view-wrapper input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--ink-faint);
+  padding: 0.75rem 0;
+  color: var(--ink);
+  font-family: 'Space Mono', monospace;
+  font-size: 0.9rem;
+  transition: border-color 0.2s ease;
+}
+
+.login-view-wrapper input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-view-wrapper button[type="submit"] {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 1.25rem;
+  font-family: 'Space Mono', monospace;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: filter 0.2s ease;
+}
+
+.login-view-wrapper button[type="submit"]:hover {
+  filter: brightness(1.1);
+}
+
+.login-view-wrapper .secondary-btn {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--ink-faint);
+  color: var(--ink-muted);
+  padding: 0.75rem;
+  font-size: 0.7rem;
+  margin-top: 1rem;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+}
+
+.login-view-wrapper .secondary-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+.login-view-wrapper .footer-deco {
+  position: fixed;
+  bottom: 2rem;
+  left: 2rem;
+  right: 2rem;
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Space Mono', monospace;
+  font-size: 0.6rem;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   LIGHT MODE OVERRIDES
+   ========================================================================== */
+html.light {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+html.light body {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Slate backgrounds mapped to clean off-white / light slate card styles */
+html.light .bg-slate-950 {
+  background-color: #f8fafc !important;
+}
+
+html.light .bg-slate-900 {
+  background-color: #ffffff !important;
+}
+
+html.light .bg-slate-900\/50,
+html.light .bg-slate-900\/60 {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(12px);
+}
+
+html.light .bg-slate-950\/40,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/20,
+html.light .bg-slate-950\/80 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Border mapping for high-contrast visibility */
+html.light .border-slate-800,
+html.light .border-slate-850 {
+  border-color: #cbd5e1 !important;
+}
+
+html.light .divide-slate-800\/80,
+html.light .divide-slate-850 {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text color overrides */
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-slate-300,
+html.light .text-white {
+  color: #0f172a !important;
+}
+
+html.light .text-slate-400 {
+  color: #475569 !important;
+}
+
+html.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+html.light .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+/* Sidebar Specific overrides */
+html.light aside {
+  background-color: #ffffff !important;
+  border-right: 1px solid #cbd5e1 !important;
+}
+
+html.light header {
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+}
+
+html.light aside .text-slate-400,
+html.light header .text-slate-400 {
+  color: #475569 !important;
+}
+
+/* Keep primary buttons vibrant but adjust text */
+html.light .bg-blue-600,
+html.light .bg-emerald-600,
+html.light .bg-indigo-600 {
+  color: #ffffff !important;
+}
+
+/* Adjust inactive navigation styles */
+html.light aside button:not(.bg-blue-600) {
+  color: #475569 !important;
+}
+html.light aside button:not(.bg-blue-600):hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* Active background adjustments */
+html.light .bg-rose-950\/20 {
+  background-color: #ffe4e6 !important;
+  color: #e11d48 !important;
+}
+html.light .text-rose-400 {
+  color: #be123c !important;
+}
+html.light .border-rose-900\/30 {
+  border-color: #fecdd3 !important;
+}
+
+html.light .bg-emerald-950\/20 {
+  background-color: #dcfce7 !important;
+  color: #15803d !important;
+}
+html.light .text-emerald-400 {
+  color: #15803d !important;
+}
+html.light .border-emerald-500\/20 {
+  border-color: #bbf7d0 !important;
+}
+
+html.light .bg-blue-950\/50,
+html.light .bg-blue-950\/30 {
+  background-color: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+html.light .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+html.light .border-blue-900\/30 {
+  border-color: #bfdbfe !important;
+}
+

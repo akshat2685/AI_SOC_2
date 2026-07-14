@@ -1,0 +1,33 @@
+# Python virtual environment
+venv/
+.venv/
+env/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment variables and secrets
+.env
+backend/.env
+
+# Local database and generated reports
+backend/soc.db
+backend/reports/
+*.pdf
+
+# Editor/IDE settings
+.vscode/
+.idea/
+.DS_Store
+b a c k e n d / q d r a n t _ l o c a l /  
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Large Binaries
+*.msi
+*.exe
