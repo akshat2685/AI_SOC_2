@@ -193,6 +193,25 @@ services:
       - "3306:3306"
     restart: unless-stopped
 
+  intelligence-engine:
+    build:
+      context: ./intelligence_engine
+    container_name: shieldai-intelligence
+    ports:
+      - "8001:8001"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - POSTGRES_URL=postgresql://soc:${POSTGRES_PASSWORD:-changeme_in_production}@postgres:5432/soc
+      - NEO4J_URI=bolt://neo4j:7687
+      - QDRANT_URL=http://qdrant:6333
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - kafka
+      - postgres
+      - qdrant
+      - neo4j
+    restart: unless-stopped
+
 volumes:
   pgdata:
   qdrant_data:

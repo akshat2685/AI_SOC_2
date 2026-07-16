@@ -77,6 +77,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer } from 'http';
+import http from 'http';
 import { WebSocketServer } from 'ws';
 import { GoogleGenAI } from '@google/genai';
 import pg from 'pg';
@@ -90,6 +91,62 @@ import multer from 'multer';
 
 // Load environment variables
 dotenv.config();
+
+// ==========================================
+// PYTHON INTELLIGENCE ENGINE PROXY
+// ==========================================
+const INTELLIGENCE_ENGINE_HOST = process.env.INTELLIGENCE_ENGINE_HOST || (process.env.DOCKER_ENV ? 'intelligence-engine' : 'localhost');
+const INTELLIGENCE_ENGINE_PORT = process.env.INTELLIGENCE_ENGINE_PORT || 8001;
+
+/**
+ * Proxy a request to the Python Intelligence Engine (FastAPI).
+ * Uses Node's built-in http module — no external dependencies.
+ * @param {string} targetPath - The path on the Python service (e.g. '/api/v1/copilot/query')
+ * @param {object} body - The JSON body to forward
+ * @returns {Promise<object>} Parsed JSON response from the Python service
+ */
+function proxyToIntelligenceEngine(targetPath, body) {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify(body);
+    const options = {
+      hostname: INTELLIGENCE_ENGINE_HOST,
+      port: INTELLIGENCE_ENGINE_PORT,
+      path: targetPath,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
+      timeout: 30000,
+    };
+
+    const proxyReq = http.request(options, (proxyRes) => {
+      let data = '';
+      proxyRes.on('data', (chunk) => { data += chunk; });
+      proxyRes.on('end', () => {
+        try {
+          resolve({ statusCode: proxyRes.statusCode, body: JSON.parse(data) });
+        } catch (parseErr) {
+          resolve({ statusCode: proxyRes.statusCode, body: { raw: data } });
+        }
+      });
+    });
+
+    proxyReq.on('error', (err) => {
+      reject(new Error(`Intelligence Engine unreachable at ${INTELLIGENCE_ENGINE_HOST}:${INTELLIGENCE_ENGINE_PORT}: ${err.message}`));
+    });
+
+    proxyReq.on('timeout', () => {
+      proxyReq.destroy();
+      reject(new Error('Intelligence Engine request timed out'));
+    });
+
+    proxyReq.write(postData);
+    proxyReq.end();
+  });
+}
+
+console.log(`[BRIDGE] Intelligence Engine proxy configured -> ${INTELLIGENCE_ENGINE_HOST}:${INTELLIGENCE_ENGINE_PORT}`);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1937,6 +1994,46 @@ User Query: "${query}"`;
   }
 
   res.json({ response: responseText });
+});
+
+// ==========================================
+// INTELLIGENCE ENGINE PROXY ROUTES
+// ==========================================
+
+// Forward copilot queries to the Python Intelligence Engine
+app.post('/api/v1/copilot/query', async (req, res) => {
+  try {
+    console.log('[BRIDGE] Proxying copilot query to Intelligence Engine');
+    const result = await proxyToIntelligenceEngine('/api/v1/copilot/query', req.body);
+    res.status(result.statusCode).json(result.body);
+  } catch (err) {
+    console.error('[BRIDGE] Copilot proxy error:', err.message);
+    res.status(502).json({ error: 'Intelligence Engine unavailable', detail: err.message });
+  }
+});
+
+// Forward investigation requests to the Python Intelligence Engine
+app.post('/api/v1/investigate', async (req, res) => {
+  try {
+    console.log('[BRIDGE] Proxying investigation to Intelligence Engine');
+    const result = await proxyToIntelligenceEngine('/api/v1/investigate', req.body);
+    res.status(result.statusCode).json(result.body);
+  } catch (err) {
+    console.error('[BRIDGE] Investigation proxy error:', err.message);
+    res.status(502).json({ error: 'Intelligence Engine unavailable', detail: err.message });
+  }
+});
+
+// Forward investigation explanation requests to the Python Intelligence Engine
+app.post('/api/v1/investigation/explain', async (req, res) => {
+  try {
+    console.log('[BRIDGE] Proxying investigation explain to Intelligence Engine');
+    const result = await proxyToIntelligenceEngine('/api/v1/investigation/explain', req.body);
+    res.status(result.statusCode).json(result.body);
+  } catch (err) {
+    console.error('[BRIDGE] Investigation explain proxy error:', err.message);
+    res.status(502).json({ error: 'Intelligence Engine unavailable', detail: err.message });
+  }
 });
 
 // ==========================================
