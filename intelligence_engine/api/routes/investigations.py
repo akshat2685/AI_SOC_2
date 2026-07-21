@@ -316,8 +316,8 @@ async def get_incident_graph(id: str):
         except ImportError:
             from intelligence_engine.api.database import db
         
-        # Runs Neo4j topology query
-        results = db.execute_neo4j(
+        # Runs Neo4j topology query asynchronously
+        results = await db.aexecute_neo4j(
             "MATCH (n)-[r]->(m) RETURN n, labels(n)[0] as label_n, type(r) as type_r, m, labels(m)[0] as label_m LIMIT 50;"
         )
         nodes_dict = {}
@@ -413,14 +413,21 @@ async def trigger_investigation(
 @router.post("/investigations/explain")
 @router.post("/investigation/explain")
 async def investigation_explain(request: ExplainRequest):
-    # Route explain request to same Gemini LLM logic
+    # Route explain request to same Gemini LLM logic with optimization
     try:
         from langchain_google_genai import ChatGoogleGenerativeAI
         from langchain_core.messages import SystemMessage, HumanMessage
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+        try:
+            from core.optimizations import wrap_llm_with_router
+        except ImportError:
+            from intelligence_engine.core.optimizations import wrap_llm_with_router
+            
+        _base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+        llm = wrap_llm_with_router(_base_llm)
+        
         sys_msg = SystemMessage(content="You are a SOC Copilot AI. Given an investigation ID, provide a JSON response with fields: timeline (list of strings), root_cause (string), impact (string), recommendations (list of strings). Create a plausible scenario based on the ID. Provide ONLY valid JSON.")
         human_msg = HumanMessage(content=f"Explain investigation {request.investigation_id}")
-        response = llm.invoke([sys_msg, human_msg])
+        response = await llm.ainvoke([sys_msg, human_msg])
         text = response.content.strip()
         if text.startswith("```json"):
             text = text[7:-3]

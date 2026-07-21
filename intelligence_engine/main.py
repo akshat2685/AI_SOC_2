@@ -5,13 +5,51 @@ from kafka_consumer import consume_events, dlq_consumer_task
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialize OpenTelemetry and JSON Logging
+    try:
+        from core.observability import setup_opentelemetry, setup_json_logging, metrics_worker
+    except ImportError:
+        from intelligence_engine.core.observability import setup_opentelemetry, setup_json_logging, metrics_worker
+        
+    setup_opentelemetry()
+    setup_json_logging()
+
     # Start Kafka consumer as a background task when the app starts
     consumer_task = asyncio.create_task(consume_events())
     dlq_task = asyncio.create_task(dlq_consumer_task())
+    metrics_task = asyncio.create_task(metrics_worker())
+    
+    # Start Compliance Processor
+    try:
+        from plugins.compliance.compliance_consumer import run_compliance_stream
+    except ImportError:
+        from intelligence_engine.plugins.compliance.compliance_consumer import run_compliance_stream
+    compliance_task = asyncio.create_task(run_compliance_stream())
+    
+    # Start Mesh Client
+    import os
+    try:
+        from core.mesh import NatsMeshClient, LocalMeshClient, AgentProfile
+    except ImportError:
+        from intelligence_engine.core.mesh import NatsMeshClient, LocalMeshClient, AgentProfile
+        
+    nats_url = os.getenv("NATS_URL")
+    if nats_url:
+        app.state.mesh_client = NatsMeshClient(nats_url=nats_url)
+    else:
+        app.state.mesh_client = LocalMeshClient()
+        
+    await app.state.mesh_client.connect()
+    profile = AgentProfile(node_name="intelligence-engine-core", capabilities=["orchestration", "copilot"], zone="core")
+    await app.state.mesh_client.register_agent(profile)
+
     yield
     # Cancel the task when the app shuts down
     consumer_task.cancel()
     dlq_task.cancel()
+    metrics_task.cancel()
+    compliance_task.cancel()
+    await app.state.mesh_client.disconnect()
 
 app = FastAPI(
     title="EDYSOR-X Intelligence Engine",
@@ -19,6 +57,19 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+except ImportError:
+    pass
+
+try:
+    from prometheus_client import make_asgi_app
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
+except ImportError:
+    pass
 
 @app.get("/health")
 async def health_check():
@@ -43,8 +94,14 @@ class QueryRequest(BaseModel):
 class ExplainRequest(BaseModel):
     investigation_id: str
 
-# Initialize LLM
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+# Initialize LLM with Router for Optimization
+try:
+    from core.optimizations import wrap_llm_with_router
+except ImportError:
+    from intelligence_engine.core.optimizations import wrap_llm_with_router
+
+_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+llm = wrap_llm_with_router(_base_llm)
 
 @app.post("/api/v1/copilot/query")
 async def copilot_query(request: QueryRequest):
@@ -52,7 +109,7 @@ async def copilot_query(request: QueryRequest):
     human_msg = HumanMessage(content=request.query)
     
     try:
-        response = llm.invoke([sys_msg, human_msg])
+        response = await llm.ainvoke([sys_msg, human_msg])
         text = response.content.strip()
         if text.startswith("```json"):
             text = text[7:-3]
@@ -74,7 +131,7 @@ async def investigation_explain(request: ExplainRequest):
     human_msg = HumanMessage(content=f"Explain investigation {request.investigation_id}")
     
     try:
-        response = llm.invoke([sys_msg, human_msg])
+        response = await llm.ainvoke([sys_msg, human_msg])
         text = response.content.strip()
         if text.startswith("```json"):
             text = text[7:-3]

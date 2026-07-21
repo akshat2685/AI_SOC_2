@@ -1,0 +1,27 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: backend-service
+    url: http://soc-backend:8000
+    routes:
+      - name: backend-route
+        paths:
+          - /api
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+      - name: jwt
+        config:
+          key_claim_name: kid
+          claims_to_verify:
+            - exp
+      - name: mtls-auth
+        config:
+          ca_certificates: []
+      - name: pre-function
+        config:
+          functions:
+            - "ngx.log(ngx.ERR, 'WAF rule applied')"

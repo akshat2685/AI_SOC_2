@@ -24,6 +24,9 @@ sys.modules['sklearn.impute'] = MagicMock()
 sys.modules['sklearn.preprocessing'] = MagicMock()
 sys.modules['sklearn.compose'] = MagicMock()
 sys.modules['clickhouse_connect'] = MagicMock()
+sys.modules['psycopg'] = MagicMock()
+sys.modules['psycopg2'] = MagicMock()
+sys.modules['psycopg2.extras'] = MagicMock()
 
 # Mock hvac for vault client
 mock_hvac = MagicMock()

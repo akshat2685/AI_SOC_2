@@ -43,7 +43,7 @@ def test_threat_feed_model():
 
 
 def test_indicator_model():
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     indicator = Indicator(
         id="ind-1",
         feed_id="feed-1",

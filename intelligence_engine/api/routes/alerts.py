@@ -14,38 +14,16 @@ class InvestigateRequestBody(BaseModel):
     alert_id: Optional[str] = None
 
 # Helper to generate PDF bytes dynamically
-def generate_mock_pdf_bytes(title: str, content: str) -> bytes:
-    # A simple valid PDF structure
-    pdf_content = (
-        "%PDF-1.4\n"
-        "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
-        "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
-        "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n"
-        "4 0 obj\n"
-        "<< /Length 150 >>\n"
-        "stream\n"
-        "BT\n/F1 24 Tf\n100 700 Td\n(" + title + ") Tj\n"
-        "0 -40 Td\n/F1 12 Tf\n(" + content + ") Tj\n"
-        "ET\n"
-        "endstream\n"
-        "endobj\n"
-        "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\n"
-        "endobj\n"
-        "xref\n"
-        "0 6\n"
-        "0000000000 65535 f \n"
-        "0000000009 00000 n \n"
-        "0000000056 00000 n \n"
-        "0000000111 00000 n \n"
-        "0000000250 00000 n \n"
-        "0000000450 00000 n \n"
-        "trailer\n"
-        "<< /Size 6 /Root 1 0 R >>\n"
-        "startxref\n"
-        "565\n"
-        "%%EOF\n"
-    )
-    return pdf_content.encode("latin1")
+def generate_mock_pdf_stream(title: str, content: str):
+    # Yield PDF chunks dynamically to reduce memory consumption
+    yield b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n"
+    yield b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n"
+    yield b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n"
+    yield b"4 0 obj\n<< /Length 150 >>\nstream\nBT\n/F1 24 Tf\n100 700 Td\n(" + title.encode('latin1', errors='replace') + b") Tj\n"
+    yield b"0 -40 Td\n/F1 12 Tf\n(" + content.encode('latin1', errors='replace') + b") Tj\nET\nendstream\nendobj\n"
+    yield b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n"
+    yield b"xref\n0 6\n0000000000 65535 f \n0000000009 00000 n \n0000000056 00000 n \n0000000111 00000 n \n0000000250 00000 n \n0000000450 00000 n \n"
+    yield b"trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n565\n%%EOF\n"
 
 def get_all_alerts():
     try:
@@ -262,9 +240,8 @@ async def trigger_investigation(
 async def get_alert_report_pdf(id: int):
     title = f"EDYSOR-X Alert Report (ID: {id})"
     content = f"This report contains details for alert {id} generated on 2026-07-15."
-    pdf_bytes = generate_mock_pdf_bytes(title, content)
     return StreamingResponse(
-        io.BytesIO(pdf_bytes),
+        generate_mock_pdf_stream(title, content),
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=edysor_alert_{id}.pdf"}
     )

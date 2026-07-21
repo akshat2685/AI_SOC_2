@@ -52,34 +52,52 @@ def test_health_check():
     assert response.status_code == 200
     assert response.json() == {"status": "healthy", "service": "intelligence-engine"}
 
-@patch("langchain_google_genai.ChatGoogleGenerativeAI.invoke")
-def test_copilot_query(mock_invoke):
+def test_copilot_query():
+    try:
+        from main import llm
+    except ImportError:
+        from intelligence_engine.main import llm
     mock_response = MagicMock()
     mock_response.content = '{"answer": "Test Answer", "evidence": ["Test Evidence"], "confidence": 0.99, "sources": ["Test Source"], "mitre_mapping": ["T1234"]}'
-    mock_invoke.return_value = mock_response
+    original_ainvoke = llm.ainvoke
+    async def mock_ainvoke(*args, **kwargs):
+        return mock_response
+    object.__setattr__(llm, "ainvoke", mock_ainvoke)
+    try:
 
-    response = client.post("/api/v1/copilot/query", json={"query": "Test query"})
-    assert response.status_code == 200
-    data = response.json()
-    assert data["answer"] == "Test Answer"
-    assert "Test Evidence" in data["evidence"]
-    assert data["confidence"] == 0.99
-    assert "Test Source" in data["sources"]
-    assert "T1234" in data["mitre_mapping"]
+        response = client.post("/api/v1/copilot/query", json={"query": "Test query"})
+        assert response.status_code == 200
+        data = response.json()
+        assert data["answer"] == "Test Answer"
+        assert "Test Evidence" in data["evidence"]
+        assert data["confidence"] == 0.99
+        assert "Test Source" in data["sources"]
+        assert "T1234" in data["mitre_mapping"]
+    finally:
+        object.__setattr__(llm, "ainvoke", original_ainvoke)
 
-@patch("langchain_google_genai.ChatGoogleGenerativeAI.invoke")
-def test_investigation_explain(mock_invoke):
+def test_investigation_explain():
+    try:
+        from main import llm
+    except ImportError:
+        from intelligence_engine.main import llm
     mock_response = MagicMock()
     mock_response.content = '{"timeline": ["09:00: Event"], "root_cause": "Test Cause", "impact": "Test Impact", "recommendations": ["Test Rec"]}'
-    mock_invoke.return_value = mock_response
+    original_ainvoke = llm.ainvoke
+    async def mock_ainvoke(*args, **kwargs):
+        return mock_response
+    object.__setattr__(llm, "ainvoke", mock_ainvoke)
+    try:
 
-    response = client.post("/api/v1/investigation/explain", json={"investigation_id": "INV-123"})
-    assert response.status_code == 200
-    data = response.json()
-    assert "09:00: Event" in data["timeline"]
-    assert data["root_cause"] == "Test Cause"
-    assert data["impact"] == "Test Impact"
-    assert "Test Rec" in data["recommendations"]
+        response = client.post("/api/v1/investigation/explain", json={"investigation_id": "INV-123"})
+        assert response.status_code == 200
+        data = response.json()
+        assert "09:00: Event" in data["timeline"]
+        assert data["root_cause"] == "Test Cause"
+        assert data["impact"] == "Test Impact"
+        assert "Test Rec" in data["recommendations"]
+    finally:
+        object.__setattr__(llm, "ainvoke", original_ainvoke)
 
 # New API Tests for Milestone 2 Router Framework
 def test_new_health_check():

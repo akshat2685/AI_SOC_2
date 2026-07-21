@@ -15,7 +15,13 @@ from intelligence_engine.agents.investigation_agent import build_investigation_g
 from intelligence_engine.soar.automation_engine import SOARAutomationEngine
 
 # LLM & service singletons
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+try:
+    from core.optimizations import wrap_llm_with_router
+except ImportError:
+    from intelligence_engine.core.optimizations import wrap_llm_with_router
+
+_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+llm = wrap_llm_with_router(_base_llm)
 detection_engine = AutonomousDetectionEngine()
 soar_engine = SOARAutomationEngine(
     db_url=os.getenv("DATABASE_URL"),

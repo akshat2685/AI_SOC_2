@@ -1,27 +1,17 @@
-from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-import os
-
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./ai_soc.db")
-
-engine = create_async_engine(
+from app.infrastructure.storage import (
     DATABASE_URL,
-    echo=False,
-    future=True
+    engine,
+    AsyncSessionLocal,
+    get_db,
+    tenant_scope,
+    dispose_engine,
 )
 
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False,
-)
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for providing a database session."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-        finally:
-            await session.close()
+__all__ = [
+    "DATABASE_URL",
+    "engine",
+    "AsyncSessionLocal",
+    "get_db",
+    "tenant_scope",
+    "dispose_engine",
+]

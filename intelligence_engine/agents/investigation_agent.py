@@ -12,7 +12,13 @@ from psycopg2.extras import RealDictCursor
 import uuid
 
 # Initialize LLM
-llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+try:
+    from core.optimizations import wrap_llm_with_router
+except ImportError:
+    from intelligence_engine.core.optimizations import wrap_llm_with_router
+
+_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+llm = wrap_llm_with_router(_base_llm)
 
 # Database configs
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")

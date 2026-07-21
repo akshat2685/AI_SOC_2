@@ -79,7 +79,20 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     # Set up logging on app startup
     setup_logging()
-    logger.info("Logging configured on app startup via setup_logging().")
+    
+    # Initialize OpenTelemetry and JSON Logging
+    try:
+        from core.observability import setup_opentelemetry, setup_json_logging, metrics_worker
+    except ImportError:
+        from intelligence_engine.core.observability import setup_opentelemetry, setup_json_logging, metrics_worker
+
+    setup_opentelemetry()
+    setup_json_logging()
+    
+    # Start resource monitor
+    metrics_task = asyncio.create_task(metrics_worker())
+    
+    logger.info("Logging and Telemetry configured on app startup via setup_logging() and setup_opentelemetry().")
 
     # Start Kafka consumer as a background task when the app starts if available
     consumer_task = None
@@ -110,6 +123,8 @@ async def lifespan(app: FastAPI):
     if dlq_task:
         dlq_task.cancel()
         logger.info("Kafka DLQ consumer background task cancelled.")
+        
+    metrics_task.cancel()
 
     # Clean up and close all database connections
     try:
@@ -136,6 +151,12 @@ app = FastAPI(
     lifespan=lifespan,
     openapi_tags=tags_metadata
 )
+
+try:
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    FastAPIInstrumentor.instrument_app(app)
+except ImportError:
+    logger.warning("OpenTelemetry FastAPI Instrumentation not available.")
 
 # Exception Handler
 app.add_exception_handler(Exception, global_exception_handler)
@@ -196,6 +217,13 @@ app.include_router(reports.router, dependencies=[Depends(require_permission("rea
 app.include_router(dashboard.router, dependencies=[Depends(require_permission("read"))])
 app.include_router(approvals.router, dependencies=[Depends(require_permission("write"))])
 
+try:
+    from prometheus_client import make_asgi_app
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
+except ImportError:
+    pass
+
 @app.get("/")
 async def root():
     return {
@@ -203,9 +231,6 @@ async def root():
         "docs_url": "/docs"
     }
 
-@app.get("/api/v1/trigger-error")
-async def trigger_error(user = Depends(require_permission("read"))):
-    raise ValueError("Test unhandled exception")
 
 
 if __name__ == "__main__":

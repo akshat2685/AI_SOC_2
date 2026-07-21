@@ -10,8 +10,7 @@ __pycache__/
 *.pyd
 
 # Environment variables and secrets
-.env
-backend/.env
+**/.env
 
 # Local database and generated reports
 backend/soc.db

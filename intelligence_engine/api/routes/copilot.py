@@ -23,7 +23,12 @@ except ImportError:
         from intelligence_engine.main import llm
     except ImportError:
         if ChatGoogleGenerativeAI is not None:
-            llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+            try:
+                from core.optimizations import wrap_llm_with_router
+            except ImportError:
+                from intelligence_engine.core.optimizations import wrap_llm_with_router
+            _base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+            llm = wrap_llm_with_router(_base_llm)
         else:
             llm = None
 
@@ -53,7 +58,7 @@ async def copilot_query(request: QueryRequest):
     human_msg = HumanMessage(content=request.query)
     
     try:
-        response = llm.invoke([sys_msg, human_msg])
+        response = await llm.ainvoke([sys_msg, human_msg])
         text = response.content.strip()
         if text.startswith("```json"):
             text = text[7:-3]
@@ -84,7 +89,7 @@ async def investigation_explain(request: ExplainRequest):
     human_msg = HumanMessage(content=f"Explain investigation {request.investigation_id}")
     
     try:
-        response = llm.invoke([sys_msg, human_msg])
+        response = await llm.ainvoke([sys_msg, human_msg])
         text = response.content.strip()
         if text.startswith("```json"):
             text = text[7:-3]
@@ -139,7 +144,7 @@ async def chat(request: ChatRequest):
         WHERE n.id CONTAINS $query OR (exists(n.ip) AND n.ip CONTAINS $query)
         RETURN n, labels(n)[0] AS label LIMIT 5
         """
-        results = db.execute_neo4j(query_str, {"query": request.query})
+        results = await db.aexecute_neo4j(query_str, {"query": request.query})
         neo4j_context = "\n".join([f"Node: {r.get('n')}, Label: {r.get('label')}" for r in results])
     except Exception as e:
         logger.warning(f"Neo4j search failed, using fallback: {e}")
@@ -158,7 +163,7 @@ Neo4j Context:
     human_msg = HumanMessage(content=request.query)
 
     try:
-        response = llm.invoke([sys_msg, human_msg])
+        response = await llm.ainvoke([sys_msg, human_msg])
         return {"response": response.content.strip()}
     except Exception as e:
         logger.error(f"Error calling Gemini in chat: {e}")

@@ -1,7 +1,8 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, Query, WebSocketDisconnect
 from typing import List
 import asyncio
 import random
+from core.ws_manager import manager as ws_manager
 
 app = FastAPI(title="AI SOC Dashboard API")
 
@@ -50,6 +51,21 @@ async def websocket_endpoint(websocket: WebSocket):
             await asyncio.sleep(5)
     except Exception as e:
         print(f"WebSocket Error: {e}")
+
+@app.websocket("/ws/notifications")
+async def websocket_notifications(websocket: WebSocket, token: str = Query(...)):
+    tenant_id = await ws_manager.connect(websocket, token)
+    if tenant_id is None:
+        return
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Not expecting client messages for now, just keep connection open
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket, tenant_id)
+    except Exception as e:
+        print(f"WebSocket Notification Error: {e}")
+        ws_manager.disconnect(websocket, tenant_id)
 
 if __name__ == "__main__":
     import uvicorn

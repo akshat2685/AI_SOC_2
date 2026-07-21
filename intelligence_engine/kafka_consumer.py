@@ -10,6 +10,7 @@ from intelligence_engine.ml.detection_engine import AutonomousDetectionEngine
 from intelligence_engine.agents.soc_orchestrator import run_orchestrator
 from intelligence_engine.core.clickhouse_writer import ClickHouseWriter
 from intelligence_engine.core.observability import trace, KAFKA_LAG_GAUGE, DLQ_EVENTS_COUNTER
+from intelligence_engine.core.notification_router import router as notification_router
 
 logger = logging.getLogger(__name__)
 
@@ -90,20 +91,40 @@ async def process_batch_with_retry(events_batch, max_retries=3):
 
             # 3. If anomaly detected (-1), trigger SOC orchestrator concurrently
             orchestrator_tasks = []
+            orchestrator_meta = []
             for idx, label in enumerate(predictions):
                 if label == -1:
-                    alert_id = events_batch[idx].get("event_id", str(uuid.uuid4()))
+                    event_data = events_batch[idx]
+                    alert_id = event_data.get("event_id", str(uuid.uuid4()))
+                    tenant_id = event_data.get("tenant_id", 1)
+                    
                     logger.warning(
                         "[ANOMALY] Event %s flagged by Isolation Forest - launching SOC orchestrator",
                         alert_id,
                     )
+                    
+                    # Notify about anomaly detection
+                    asyncio.create_task(notification_router.route(
+                        tenant_id=int(tenant_id),
+                        event_type="anomaly_detected",
+                        payload={"alert_id": alert_id, **event_data}
+                    ))
+                    
                     orchestrator_tasks.append(run_orchestrator(alert_id=alert_id, hitl_level=1))
+                    orchestrator_meta.append({"tenant_id": tenant_id, "alert_id": alert_id})
             
             if orchestrator_tasks:
                 results = await asyncio.gather(*orchestrator_tasks, return_exceptions=True)
-                for res in results:
+                for idx, res in enumerate(results):
                     if isinstance(res, Exception):
                         logger.error("[SOC Orchestrator Error]: %s", str(res))
+                    else:
+                        meta = orchestrator_meta[idx]
+                        asyncio.create_task(notification_router.route(
+                            tenant_id=int(meta["tenant_id"]),
+                            event_type="investigation_completed",
+                            payload={"alert_id": meta["alert_id"], "result": str(res)}
+                        ))
 
             return True
         except Exception as e:

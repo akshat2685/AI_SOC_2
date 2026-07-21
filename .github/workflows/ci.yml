@@ -7,6 +7,33 @@ on:
     branches: [ "main" ]
 
 jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    - name: Run Bandit for SAST
+      run: |
+        pip install bandit
+        bandit -r backend intelligence_engine -ll -ii
+
+  sca:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        format: 'table'
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+
   backend-test:
     runs-on: ubuntu-latest
     steps:

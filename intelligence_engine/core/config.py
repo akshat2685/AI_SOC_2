@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from functools import lru_cache
 
 class DatabaseSettings(BaseModel):
-    postgres_url: str = "postgresql://soc:changeme_in_production@localhost:5432/soc"
+    postgres_url: str
     neo4j_uri: str = "bolt://localhost:7687"
-    neo4j_auth: str = "neo4j/password_in_production"
+    neo4j_auth: str
     qdrant_url: str = "http://localhost:6333"
     redis_url: str = "redis://localhost:6379"
     clickhouse_host: str = "localhost"
@@ -27,7 +27,7 @@ class APISettings(BaseModel):
     intelligence_engine_port: int = 8001
 
 class SecuritySettings(BaseModel):
-    secret_key: str = "change_me_in_production"
+    secret_key: str
     algorithm: str = "RS256"
     allowed_origins: list[str] = ["https://soc.example.com"]
     public_key_path: str = ""
@@ -35,12 +35,12 @@ class SecuritySettings(BaseModel):
     api_key_salt: str = "default_salt"
 
 class Settings(BaseSettings):
-    db: DatabaseSettings = DatabaseSettings()
-    ai: AISettings = AISettings()
-    kafka: KafkaSettings = KafkaSettings()
-    soar: SOARSettings = SOARSettings()
-    api: APISettings = APISettings()
-    security: SecuritySettings = SecuritySettings()
+    db: DatabaseSettings
+    ai: AISettings
+    kafka: KafkaSettings
+    soar: SOARSettings
+    api: APISettings
+    security: SecuritySettings
 
     model_config = SettingsConfigDict(
         env_file='.env',
@@ -50,11 +50,18 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
+    postgres_url = os.getenv("POSTGRES_URL")
+    if not postgres_url:
+        raise ValueError("POSTGRES_URL is not set")
+    neo4j_auth = os.getenv("NEO4J_AUTH")
+    if not neo4j_auth:
+        raise ValueError("NEO4J_AUTH is not set")
+        
     return Settings(
         db=DatabaseSettings(
-            postgres_url=os.getenv("POSTGRES_URL", "postgresql://soc:changeme_in_production@localhost:5432/soc"),
+            postgres_url=postgres_url,
             neo4j_uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
-            neo4j_auth=os.getenv("NEO4J_AUTH", "neo4j/password_in_production"),
+            neo4j_auth=neo4j_auth,
             qdrant_url=os.getenv("QDRANT_URL", "http://localhost:6333"),
             redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
             clickhouse_host=os.getenv("CLICKHOUSE_HOST", "localhost"),
@@ -71,7 +78,7 @@ def get_settings() -> Settings:
             intelligence_engine_port=int(os.getenv("INTELLIGENCE_ENGINE_PORT", "8001"))
         ),
         security=SecuritySettings(
-            secret_key=os.getenv("SECRET_KEY", "change_me_in_production"),
+            secret_key=os.getenv("SECRET_KEY") or (_ for _ in ()).throw(ValueError("SECRET_KEY is not set")),
             algorithm=os.getenv("JWT_ALGORITHM", "RS256"),
             allowed_origins=os.getenv("ALLOWED_ORIGINS", "https://soc.example.com").split(","),
             public_key_path=os.getenv("PUBLIC_KEY_PATH", ""),

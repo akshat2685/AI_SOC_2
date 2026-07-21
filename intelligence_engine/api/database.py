@@ -9,6 +9,24 @@ except ImportError:
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
+try:
+    from core.optimizations import async_wrap, content_hash_cache, async_content_hash_cache
+except ImportError:
+    try:
+        from intelligence_engine.core.optimizations import async_wrap, content_hash_cache, async_content_hash_cache
+    except ImportError:
+        def async_wrap(func):
+            import asyncio, functools
+            @functools.wraps(func)
+            async def wrapper(*args, **kwargs):
+                loop = asyncio.get_event_loop()
+                return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
+            return wrapper
+        def content_hash_cache(func):
+            return func
+        def async_content_hash_cache(func):
+            return func
+
 # Try imports with graceful fallback
 try:
     import psycopg2
@@ -94,6 +112,10 @@ class DatabaseManager:
             if conn:
                 self.release_postgres_connection(conn)
 
+    @async_wrap
+    async def aexecute_postgres(self, query: str, params: Optional[tuple] = None, fetch: bool = True) -> Any:
+        return self.execute_postgres(query, params, fetch)
+
     def get_clickhouse_client(self):
         if clickhouse_connect is None:
             raise RuntimeError("clickhouse_connect is not installed.")
@@ -119,6 +141,12 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"ClickHouse query execution failed: {e}")
             raise
+
+    @async_content_hash_cache
+    async def aexecute_clickhouse(self, query: str) -> List[Any]:
+        import asyncio, functools
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, functools.partial(self.execute_clickhouse, query))
 
     def get_neo4j_driver(self):
         if GraphDatabase is None:
@@ -150,6 +178,12 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Neo4j query execution failed: {e}")
             raise
+
+    @async_content_hash_cache
+    async def aexecute_neo4j(self, query: str, parameters: Optional[Dict[str, Any]] = None) -> List[Any]:
+        import asyncio, functools
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, functools.partial(self.execute_neo4j, query, parameters))
 
     def get_qdrant_client(self) -> QdrantClient:
         if QdrantClient is None:
