@@ -1,7 +1,7 @@
 import logging
 from typing import Type, TypeVar, Generic, Optional, Any, List, Dict
 from sqlalchemy import create_engine, Column, String, Index
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from sqlalchemy.orm import declarative_base, sessionmaker, Session, declared_attr
 from sqlalchemy.sql import Select, Delete, Update
 try:
     from core.config import get_settings
@@ -22,9 +22,11 @@ class TenantBase(Base):
     tenant_id = Column(String(50), nullable=False, default="default")
     organization_id = Column(String(50), nullable=False, default="default")
     
-    __table_args__ = (
-        Index('ix_tenant_org', 'tenant_id', 'organization_id'),
-    )
+    @declared_attr
+    def __table_args__(cls):
+        return (
+            Index(f'ix_tenant_org_{cls.__tablename__}', 'tenant_id', 'organization_id'),
+        )
 
 T = TypeVar('T', bound=TenantBase)
 
