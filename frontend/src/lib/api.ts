@@ -13,7 +13,12 @@ async function request(path: string, options: RequestInit = {}): Promise<any> {
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, {
+  let finalPath = path;
+  if (!finalPath.startsWith('/api/v1')) {
+    finalPath = `/api/v1${finalPath.startsWith('/') ? finalPath : '/' + finalPath}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${finalPath}`, {
     ...options,
     headers,
   });
@@ -47,7 +52,12 @@ async function downloadFile(path: string, filename: string): Promise<void> {
   const headers: Record<string, string> = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${BASE_URL}${path}`, { headers });
+  let finalPath = path;
+  if (!finalPath.startsWith('/api/v1')) {
+    finalPath = `/api/v1${finalPath.startsWith('/') ? finalPath : '/' + finalPath}`;
+  }
+
+  const res = await fetch(`${BASE_URL}${finalPath}`, { headers });
   if (!res.ok) throw new Error(`Download failed: ${res.statusText}`);
 
   const blob = await res.blob();

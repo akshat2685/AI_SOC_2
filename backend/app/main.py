@@ -33,7 +33,7 @@ def create_app() -> FastAPI:
 
     # API Versioning Router
     api_router = APIRouter()
-    from app.api.v1 import api_keys, notifications, compliance
+    from app.api.v1 import api_keys, notifications, compliance, auth, incidents, alerts, stub_routes
     
     @api_router.get("/health", tags=["System"])
     async def health_check():
@@ -43,6 +43,10 @@ def create_app() -> FastAPI:
     api_router.include_router(api_keys.router, prefix="/api-keys", tags=["API Keys"])
     api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
     api_router.include_router(compliance.router, prefix="/compliance", tags=["Compliance"])
+    api_router.include_router(auth.router, prefix="/auth", tags=["Auth"])
+    api_router.include_router(incidents.router, prefix="/incidents", tags=["Incidents"])
+    api_router.include_router(alerts.router, prefix="/alerts", tags=["Alerts"])
+    api_router.include_router(stub_routes.router, tags=["Stubs"])
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
 

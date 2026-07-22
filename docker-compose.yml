@@ -39,6 +39,8 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
       - JWT_SECRET=${JWT_SECRET}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - VAULT_ADDR=http://vault:8200
+      - VAULT_TOKEN=root
     depends_on:
       - postgres
       - redis
@@ -186,7 +188,7 @@ services:
       - "42:42"
       - "135:135"
       - "443:443"
-      - "445:445"
+      - "4445:445"
       - "1433:1433"
       - "3306:3306"
     restart: unless-stopped
