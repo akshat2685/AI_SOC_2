@@ -144,34 +144,36 @@ async def dlq_consumer_task():
         'group.id': 'intelligence_engine_dlq_group',
         'auto.offset.reset': 'earliest'
     }
-    try:
-        consumer = Consumer(conf)
-        consumer.subscribe([DLQ_TOPIC])
-        logger.info("[DLQ Consumer] Subscribed to topic: %s", DLQ_TOPIC)
-        while True:
-            await asyncio.sleep(1.0)
-            msg = consumer.poll(timeout=1.0)
-            if msg is None:
-                continue
-            if msg.error():
-                if msg.error().code() == KafkaError._PARTITION_EOF:
+    while True:
+        try:
+            consumer = Consumer(conf)
+            consumer.subscribe([DLQ_TOPIC])
+            logger.info("[DLQ Consumer] Subscribed to topic: %s", DLQ_TOPIC)
+            while True:
+                await asyncio.sleep(1.0)
+                msg = consumer.poll(timeout=1.0)
+                if msg is None:
                     continue
-                else:
-                    logger.error("[DLQ Kafka Error] %s", msg.error())
-                    continue
-            
-            try:
-                raw_data = msg.value().decode('utf-8')
-                event = json.loads(raw_data)
-                logger.critical("[DLQ ALERT] Dead letter event detected! Error: %s", event.get('error', 'unknown'))
-                # Additional alerting logic could be implemented here
-            except Exception as e:
-                logger.error("[DLQ Processing Error] %s", str(e))
-    except Exception as e:
-        logger.error("[DLQ Consumer] Initialization failed: %s", str(e))
-    finally:
-        if 'consumer' in locals():
-            consumer.close()
+                if msg.error():
+                    if msg.error().code() == KafkaError._PARTITION_EOF:
+                        continue
+                    else:
+                        logger.error("[DLQ Kafka Error] %s", msg.error())
+                        continue
+                
+                try:
+                    raw_data = msg.value().decode('utf-8')
+                    event = json.loads(raw_data)
+                    logger.critical("[DLQ ALERT] Dead letter event detected! Error: %s", event.get('error', 'unknown'))
+                    # Additional alerting logic could be implemented here
+                except Exception as e:
+                    logger.error("[DLQ Processing Error] %s", str(e))
+        except Exception as e:
+            logger.error("[DLQ Consumer] Initialization/Loop failed: %s. Retrying in 3s...", str(e))
+            await asyncio.sleep(3)
+        finally:
+            if 'consumer' in locals():
+                consumer.close()
 
 async def consume_events():
     conf = {
@@ -186,94 +188,98 @@ async def consume_events():
     min_batch_size = 1
     
     # Task 7: Connect to ClickHouse for persistence
-    clickhouse_writer.connect()
+    try:
+        clickhouse_writer.connect()
+    except Exception as e:
+        logger.warning("[ClickHouse] Connection notice: %s", str(e))
     
     # Start background tasks
     asyncio.create_task(clickhouse_writer.batch_loop())
     asyncio.create_task(watermark_updater_task())
     
-    try:
-        consumer = Consumer(conf)
-        consumer.subscribe([TOPIC])
-        logger.info("[Intelligence Engine] Subscribed to Kafka topic: %s", TOPIC)
+    while True:
+        try:
+            consumer = Consumer(conf)
+            consumer.subscribe([TOPIC])
+            logger.info("[Intelligence Engine] Subscribed to Kafka topic: %s", TOPIC)
 
-        while True:
-            await asyncio.sleep(0.1)
-            
-            # Back-Pressure: Consumer lag monitoring
-            lag_sum = 0
-            try:
-                partitions = consumer.assignment()
-                # Get current positions
-                positions = consumer.position(partitions)
-                for p in positions:
-                    if p.partition in _watermarks_cache and p.offset > 0:
-                        high = _watermarks_cache[p.partition]
-                        lag = max(0, high - p.offset)
-                        lag_sum += lag
-                        KAFKA_LAG_GAUGE.labels(partition=str(p.partition)).set(lag)
-            except Exception as e:
-                pass
-            
-            # Back-Pressure: Dynamic batch sizing based on consumer lag
-            if lag_sum > 1000:
-                batch_size = min(max_batch_size, batch_size * 2)
-            elif lag_sum < 100:
-                batch_size = max(min_batch_size, batch_size // 2)
-
-            messages = consumer.consume(num_messages=batch_size, timeout=1.0)
-            if not messages:
-                continue
-            
-            # Task 9: partition-aware batches
-            partition_batches = {}
-            for msg in messages:
-                if msg.error():
-                    if msg.error().code() == KafkaError._PARTITION_EOF:
-                        continue
-                    else:
-                        logger.error("[Kafka Error] %s", msg.error())
-                        continue
-
-                raw_data = None
+            while True:
+                await asyncio.sleep(0.1)
+                
+                # Back-Pressure: Consumer lag monitoring
+                lag_sum = 0
                 try:
-                    raw_data = msg.value().decode('utf-8')
-                    event = json.loads(raw_data)
-                    
-                    p_id = msg.partition()
-                    partition_batches.setdefault(p_id, []).append(event)
-
+                    partitions = consumer.assignment()
+                    # Get current positions
+                    positions = consumer.position(partitions)
+                    for p in positions:
+                        if p.partition in _watermarks_cache and p.offset > 0:
+                            high_watermark = _watermarks_cache[p.partition]
+                            lag_sum += max(0, high_watermark - p.offset)
+                    KAFKA_LAG_GAUGE.set(lag_sum)
                 except Exception as e:
-                    logger.error("[Processing Error] Failed to parse message: %s", str(e))
-                    if raw_data is not None:
-                        route_to_dlq(raw_data, f"JSON parse or unhandled error: {str(e)}")
-            
-            all_events = [ev for batch in partition_batches.values() for ev in batch]
-            if not all_events:
-                consumer.commit(asynchronous=True)
-                continue
-                
-            # Task 7: Persist raw telemetry to ClickHouse BEFORE feature extraction
-            await clickhouse_writer.write_batch(all_events)
-            
-            # Task 9: Async worker pool (concurrently processing partition batches)
-            worker_tasks = []
-            for p_id, batch in partition_batches.items():
-                worker_tasks.append(asyncio.create_task(process_batch_with_retry(batch)))
-                
-            results = await asyncio.gather(*worker_tasks, return_exceptions=True)
-            for p_idx, res in enumerate(results):
-                if isinstance(res, Exception) or not res:
-                    # Retrieve the batch that failed to route to DLQ
-                    failed_batch = list(partition_batches.values())[p_idx]
-                    for ev in failed_batch:
-                        route_to_dlq(ev, f"Batch processing failed: {str(res)}")
-                        
-            # Commit offsets after batch is processed
-            consumer.commit(asynchronous=True)
+                    logger.warning("[Back-Pressure] Failed to check lag: %s", e)
 
-    except Exception as e:
-        logger.error("[Kafka Consumer] Initialization failed: %s. Retrying...", str(e))
-    finally:
-        if 'consumer' in locals():
-            consumer.close()
+                # Adjust batch size dynamically based on lag
+                if lag_sum > 1000:
+                    batch_size = min(max_batch_size, batch_size * 2)
+                elif lag_sum < 100:
+                    batch_size = max(min_batch_size, batch_size // 2)
+
+                messages = consumer.consume(num_messages=batch_size, timeout=1.0)
+                if not messages:
+                    continue
+                
+                # Task 9: partition-aware batches
+                partition_batches = {}
+                for msg in messages:
+                    if msg.error():
+                        if msg.error().code() == KafkaError._PARTITION_EOF:
+                            continue
+                        else:
+                            logger.error("[Kafka Error] %s", msg.error())
+                            continue
+
+                    raw_data = None
+                    try:
+                        raw_data = msg.value().decode('utf-8')
+                        event = json.loads(raw_data)
+                        
+                        p_id = msg.partition()
+                        partition_batches.setdefault(p_id, []).append(event)
+
+                    except Exception as e:
+                        logger.error("[Processing Error] Failed to parse message: %s", str(e))
+                        if raw_data is not None:
+                            route_to_dlq(raw_data, f"JSON parse or unhandled error: {str(e)}")
+                
+                all_events = [ev for batch in partition_batches.values() for ev in batch]
+                if not all_events:
+                    consumer.commit(asynchronous=True)
+                    continue
+                    
+                # Task 7: Persist raw telemetry to ClickHouse BEFORE feature extraction
+                await clickhouse_writer.write_batch(all_events)
+                
+                # Task 9: Async worker pool (concurrently processing partition batches)
+                worker_tasks = []
+                for p_id, batch in partition_batches.items():
+                    worker_tasks.append(asyncio.create_task(process_batch_with_retry(batch)))
+                    
+                results = await asyncio.gather(*worker_tasks, return_exceptions=True)
+                for p_idx, res in enumerate(results):
+                    if isinstance(res, Exception) or not res:
+                        # Retrieve the batch that failed to route to DLQ
+                        failed_batch = list(partition_batches.values())[p_idx]
+                        for ev in failed_batch:
+                            route_to_dlq(ev, f"Batch processing failed: {str(res)}")
+                            
+                # Commit offsets after batch is processed
+                consumer.commit(asynchronous=True)
+
+        except Exception as e:
+            logger.error("[Kafka Consumer] Initialization/Loop failed: %s. Retrying in 3s...", str(e))
+            await asyncio.sleep(3)
+        finally:
+            if 'consumer' in locals():
+                consumer.close()

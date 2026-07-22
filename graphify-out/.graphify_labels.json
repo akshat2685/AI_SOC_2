@@ -398,5 +398,15 @@
   "396": "BlueAgent",
   "397": ".calculate_posture",
   "398": "backend/tests/conftest.py",
-  "399": "compliance/__init__.py"
+  "399": "compliance/__init__.py",
+  "400": "MockResponse",
+  "401": "dashboard.py",
+  "402": "TestDataRetention",
+  "403": ".__init__",
+  "404": "str",
+  "405": ".__init__",
+  "406": "endpoint.py",
+  "407": "ticket.py",
+  "408": ".normalize",
+  "409": "BaseIntegrationWorker"
 }

@@ -120,9 +120,9 @@
     "semantic_hash": "1b341488f2005a9173e207523bb96d7f"
   },
   "backend/app/infrastructure/storage/engine.py": {
-    "mtime": 1784614110.7382371,
-    "ast_hash": "27f3647698d98cd0cd16d081239687f3",
-    "semantic_hash": "27f3647698d98cd0cd16d081239687f3"
+    "mtime": 1784713767.6393287,
+    "ast_hash": "7339926a8896d3acb3bb6aab2243e5eb",
+    "semantic_hash": ""
   },
   "backend/app/infrastructure/storage/repositories/__init__.py": {
     "mtime": 1784526773.694516,
@@ -180,8 +180,8 @@
     "semantic_hash": "76490fee3c79f3b01bfe44d9ec7a1111"
   },
   "backend/app/main.py": {
-    "mtime": 1784634414.7842677,
-    "ast_hash": "0c8ec95e928ee7fba4337f105aee955e",
+    "mtime": 1784709367.3186016,
+    "ast_hash": "6a993e9df3401b0f41de56bde9c261a7",
     "semantic_hash": ""
   },
   "backend/app/rls_policy.sql": {
@@ -380,9 +380,9 @@
     "semantic_hash": "84edff2b42873a54d91e8ee87da5c76d"
   },
   "frontend/src/lib/api.ts": {
-    "mtime": 1784031911.3875425,
-    "ast_hash": "5bc8d7c8caf4937493094ee906e01579",
-    "semantic_hash": "5bc8d7c8caf4937493094ee906e01579"
+    "mtime": 1784709299.4793205,
+    "ast_hash": "c4f7eadcb4977a546cd735cf884b7731",
+    "semantic_hash": ""
   },
   "frontend/src/store/useStore.ts": {
     "mtime": 1784031911.3891666,
@@ -675,7 +675,7 @@
     "semantic_hash": "33119ba15607232012ce4925e7754f85"
   },
   "intelligence_engine/core/secrets_provider.py": {
-    "mtime": 1784291726.5062764,
+    "mtime": 1784637647.473938,
     "ast_hash": "71b98583ab80ac0397aa33b088e40ab7",
     "semantic_hash": "71b98583ab80ac0397aa33b088e40ab7"
   },
@@ -760,8 +760,8 @@
     "semantic_hash": "acf3214d7ea949b99a3325b68ec2b276"
   },
   "intelligence_engine/main.py": {
-    "mtime": 1784634516.414164,
-    "ast_hash": "6f48d3ca0508e687fc66e6c7cae61107",
+    "mtime": 1784635448.644966,
+    "ast_hash": "e01518c9af828c50009ea89059fed4b6",
     "semantic_hash": ""
   },
   "intelligence_engine/main_dashboard_api.py": {
@@ -1550,8 +1550,8 @@
     "semantic_hash": ""
   },
   "backend/app/requirements.txt": {
-    "mtime": 1784033432.0626197,
-    "ast_hash": "bc79df6b3cad2bed7789792fa0c6e91a",
+    "mtime": 1784712803.3814976,
+    "ast_hash": "75df7bd3a6ce803cfd86e1e11d63347f",
     "semantic_hash": ""
   },
   "cloud_architecture.md": {
@@ -1580,8 +1580,8 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1784625439.8180916,
-    "ast_hash": "e1b294ef457cfc0a58d0a0f947b25969",
+    "mtime": 1784708576.0925522,
+    "ast_hash": "7b89da951df6284cef4546842889534d",
     "semantic_hash": ""
   },
   "docs/adr/001_hybrid_microkernel.md": {
@@ -2130,8 +2130,8 @@
     "semantic_hash": ""
   },
   "intelligence_engine/requirements.txt": {
-    "mtime": 1784205748.59498,
-    "ast_hash": "3eae778641212b18abf10bee53f14c15",
+    "mtime": 1784635421.6573584,
+    "ast_hash": "b5aec581e74153e321a6abc788e2b013",
     "semantic_hash": ""
   },
   "istio-1.22.1/README.md": {
@@ -4322,6 +4322,46 @@
   "intelligence_engine/tests/test_compliance_stream.py": {
     "mtime": 1784634626.4272902,
     "ast_hash": "c6c337e340ffdebda40ed399a86f8458",
+    "semantic_hash": ""
+  },
+  "backend/app/api/v1/alerts.py": {
+    "mtime": 1784709343.4421542,
+    "ast_hash": "4640c52bec5555c4ef4255678a0e4f51",
+    "semantic_hash": ""
+  },
+  "backend/app/api/v1/auth.py": {
+    "mtime": 1784710020.969231,
+    "ast_hash": "4c81c1a96c904dddfaf05fcb14daa47a",
+    "semantic_hash": ""
+  },
+  "backend/app/api/v1/incidents.py": {
+    "mtime": 1784709334.0153077,
+    "ast_hash": "f93a422d7929dd519dcad3a99445f52b",
+    "semantic_hash": ""
+  },
+  "backend/app/api/v1/stub_routes.py": {
+    "mtime": 1784715540.833859,
+    "ast_hash": "ea47276fdf314c9cec0f04eb4c54956c",
+    "semantic_hash": ""
+  },
+  "backend/app/init_db.py": {
+    "mtime": 1784712754.7105043,
+    "ast_hash": "48e5385f0947b6e8a329c5009f805ae9",
+    "semantic_hash": ""
+  },
+  "backend/app/seed_db.py": {
+    "mtime": 1784713657.7377026,
+    "ast_hash": "3c814f076baaa6bc393af90636d9c605",
+    "semantic_hash": ""
+  },
+  "intelligence_engine/core/mesh.py": {
+    "mtime": 1784635869.160666,
+    "ast_hash": "9121238d420b8b1f0b5d33845d6e6fdc",
+    "semantic_hash": ""
+  },
+  "intelligence_engine/tests/test_mesh.py": {
+    "mtime": 1784635916.6809585,
+    "ast_hash": "6bc4a9176baeb263d314e709be11f113",
     "semantic_hash": ""
   }
 }

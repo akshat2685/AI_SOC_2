@@ -1,16 +1,16 @@
-# Graph Report - AI_SOC_2  (2026-07-21)
+# Graph Report - AI_SOC_2  (2026-07-22)
 
 ## Corpus Check
-- 522 files · ~311,021 words
+- 530 files · ~314,018 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3553 nodes · 5138 edges · 400 communities (287 shown, 113 thin omitted)
-- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 806 edges (avg confidence: 0.58)
+- 3652 nodes · 5307 edges · 410 communities (293 shown, 117 thin omitted)
+- Extraction: 84% EXTRACTED · 16% INFERRED · 0% AMBIGUOUS · INFERRED: 844 edges (avg confidence: 0.59)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `41bea5e0`
+- Built from commit: `380e8144`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -198,6 +198,10 @@
 - patch-css.mjs
 - patch-dashboard-shell.mjs
 - patch-mock.mjs
+- test_agent_trace.py
+- test_investigation.py
+- test_mitre.py
+- test_threat_intel.py
 - _smoke_check.py
 - test-neo4j.mjs
 - Ambient Reference Architecture w/ Argo
@@ -354,9 +358,18 @@
 - .normalize
 - BlueAgent
 - .calculate_posture
+- MockResponse
+- TestDataRetention
+- .__init__
+- str
+- .__init__
+- endpoint.py
+- ticket.py
+- .normalize
+- BaseIntegrationWorker
 
 ## God Nodes (most connected - your core abstractions)
-1. `RoleEnum` - 55 edges
+1. `RoleEnum` - 57 edges
 2. `CriticalityEnum` - 48 edges
 3. `SeverityEnum` - 47 edges
 4. `StatusEnum` - 47 edges
@@ -374,7 +387,7 @@
   tests/test_multi_tenant.py → backend/app/api/deps.py
 - `TestMultiTenantSecurity` --uses--> `TokenData`  [INFERRED]
   tests/test_multi_tenant.py → backend/app/api/deps.py
-- `TestApiKeyEndpoints` --uses--> `DualAuthMiddleware`  [INFERRED]
+- `TestApiKeyModel` --uses--> `DualAuthMiddleware`  [INFERRED]
   tests/test_api_keys.py → backend/app/api/middleware/auth_middleware.py
 - `TestApiKeySecurity` --uses--> `DualAuthMiddleware`  [INFERRED]
   tests/test_api_keys.py → backend/app/api/middleware/auth_middleware.py
@@ -382,23 +395,23 @@
 ## Import Cycles
 - None detected.
 
-## Communities (400 total, 113 thin omitted)
+## Communities (410 total, 117 thin omitted)
 
 ### Community 0 - "get_settings"
 Cohesion: 0.12
 Nodes (9): health_check(), health_ready(), HealthChecker, Any, Any, RuntimeKernel, ServiceRegistry, Test health check system. (+1 more)
 
 ### Community 1 - "test_middleware.py"
-Cohesion: 0.06
-Nodes (43): get_settings(), BaseSettings, Settings, get_current_user(), HTTPAuthorizationCredentials, verify_api_key(), verify_jwt(), BaseHTTPMiddleware (+35 more)
+Cohesion: 0.18
+Nodes (10): verify_api_key(), APIKeyService, PermissionResolver, Hierarchical roles, policy engine, and permission cache., Production API Key Service using hashed values and DB lookup., Resolves and validates tenant from request state or payload., require_permission(), TenantResolver (+2 more)
 
 ### Community 2 - "domain/models.py"
-Cohesion: 0.11
-Nodes (32): ComplianceFrameworkResponse, CompliancePostureResponse, get_posture(), list_frameworks(), Any, AsyncSession, BaseModel, Alert (+24 more)
+Cohesion: 0.07
+Nodes (45): ComplianceFrameworkResponse, CompliancePostureResponse, get_posture(), list_frameworks(), Any, AsyncSession, BaseModel, Alert (+37 more)
 
 ### Community 3 - "ApiKey"
-Cohesion: 0.18
-Nodes (8): DualAuthMiddleware, BaseHTTPMiddleware, Request, ApiKey, ApiKeyRepository, AsyncSession, TestApiKeyModel, TestDualAuthMiddleware
+Cohesion: 0.08
+Nodes (26): DualAuthMiddleware, BaseHTTPMiddleware, Request, BaseHTTPMiddleware, Request, TraceMiddleware, create_api_key(), get_api_key() (+18 more)
 
 ### Community 4 - "dependencies"
 Cohesion: 0.04
@@ -425,8 +438,8 @@ Cohesion: 0.07
 Nodes (6): JSONFormatter, MockPackage, test_copilot_query(), test_global_exception_handler(), test_investigation_explain(), test_trace_id_injection_and_headers()
 
 ### Community 10 - "SecurityOnionConnector"
-Cohesion: 0.11
-Nodes (5): BaseConnector, datetime, SecurityEvent, SecurityOnionConnector, MockResponse
+Cohesion: 0.17
+Nodes (4): BaseConnector, datetime, SecurityEvent, SecurityOnionConnector
 
 ### Community 11 - "BaseConnector"
 Cohesion: 0.09
@@ -445,8 +458,8 @@ Cohesion: 0.12
 Nodes (12): PluginLifecycleManager, Any, discover_plugins(), load_all_plugins(), load_plugin(), Any, PluginManifest, BaseModel (+4 more)
 
 ### Community 15 - "TenantCreate"
-Cohesion: 0.07
-Nodes (26): AsyncDriver, AsyncEngine, AuditEvent, AuditEventCreate, UserCreate, create_storage_engine(), dispose_engine(), AsyncQdrantClient (+18 more)
+Cohesion: 0.22
+Nodes (5): AsyncEngine, create_storage_engine(), dispose_engine(), Creates an async engine for PostgreSQL (asyncpg) or SQLite (aiosqlite).     Conf, Closes and disposes of the storage engine connection pool.
 
 ### Community 16 - "properties"
 Cohesion: 0.07
@@ -457,8 +470,8 @@ Cohesion: 0.14
 Nodes (16): add_firewall_block(), block_ip(), execute_playbook(), ExecutePlaybookRequest, FirewallBlockRequest, get_all_firewall_blocks(), get_approvals(), get_firewall_blocks() (+8 more)
 
 ### Community 18 - "DatabaseManager"
-Cohesion: 0.11
-Nodes (9): Embeddings, DatabaseManager, Any, Clean up connections/pools., Manages connections and query helpers for PostgreSQL, ClickHouse, Neo4j, Qdrant,, QdrantClient, generate_pdf(), MockEmbeddings (+1 more)
+Cohesion: 0.05
+Nodes (19): init_db(), Embeddings, DatabaseManager, Any, Clean up connections/pools., Manages connections and query helpers for PostgreSQL, ClickHouse, Neo4j, Qdrant,, QdrantClient, test_live_agent_run() (+11 more)
 
 ### Community 19 - "soc_orchestrator.py"
 Cohesion: 0.21
@@ -467,6 +480,10 @@ Nodes (23): after_hitl_edge(), alert_node(), build_soc_graph(), detection_node()
 ### Community 20 - "BaseRepository"
 Cohesion: 0.14
 Nodes (11): Alert, AlertRepository, AsyncSession, BaseRepository, Any, AsyncSession, Generic Repository Pattern wrapper handling standard CRUD actions and automatic, Executes RLS session parameter setting if supported/requested. (+3 more)
+
+### Community 21 - "TestRepositoryCRUDAndAsyncLoad"
+Cohesion: 0.23
+Nodes (6): CircuitBreakerOpenException, Exception, SlackWorker, DummyEventBus, test_circuit_breaker_failure_and_open(), test_slack_alert()
 
 ### Community 22 - "build_investigation_graph"
 Cohesion: 0.17
@@ -498,11 +515,11 @@ Nodes (17): check_api_key_scopes(), get_current_user(), get_current_user_dual(),
 
 ### Community 29 - "GraylogConnector"
 Cohesion: 0.10
-Nodes (13): GraylogConnector, BaseConnector, datetime, SecurityEvent, Establish the underlying transport., Authenticate against the remote API., Return connector health., Fetch raw events created after *since* from the source. (+5 more)
+Nodes (12): GraylogConnector, BaseConnector, datetime, SecurityEvent, Establish the underlying transport., Authenticate against the remote API., Return connector health., Fetch raw events created after *since* from the source. (+4 more)
 
 ### Community 30 - "SentinelConnector"
-Cohesion: 0.11
-Nodes (12): BaseConnector, datetime, SecurityEvent, Mark events as processed., Tear down the connection and release resources., Establish the underlying transport., Authenticate using Azure OAuth2 Client Credentials flow., Return connector health. (+4 more)
+Cohesion: 0.12
+Nodes (11): BaseConnector, datetime, Mark events as processed., Tear down the connection and release resources., Establish the underlying transport., Authenticate using Azure OAuth2 Client Credentials flow., Return connector health., Fetch raw events from Sentinel (Log Analytics Workspace) since the given time. (+3 more)
 
 ### Community 31 - "AttackSimulator"
 Cohesion: 0.16
@@ -513,16 +530,16 @@ Cohesion: 0.10
 Nodes (13): ElasticConnector, BaseConnector, datetime, SecurityEvent, Establish the underlying transport., Authenticate against the remote API., Return connector health., Fetch raw events created after *since* from the source. (+5 more)
 
 ### Community 33 - "test_notification_pipeline.py"
-Cohesion: 0.08
-Nodes (22): TenantKeyStore, WebhookEndpoint, EnvelopeCryptoService, AsyncSession, Session, wipe_memory(), email_sink(), NotificationRouter (+14 more)
+Cohesion: 0.21
+Nodes (10): email_sink(), NotificationRouter, slack_sink(), _update_history_status(), deliver_webhook(), _update_history_status(), test_rls_isolation_in_router(), test_severity_filtering() (+2 more)
 
 ### Community 34 - "TestInputValidation"
 Cohesion: 0.10
 Nodes (8): Integration tests for endpoints, Mock Redis client for sync usage in tests., Test log entry validation, Test token bucket rate limiter, redis_mock(), TestEndpointIntegration, TestInputValidation, TestRateLimiting
 
 ### Community 35 - "AuditConsumer"
-Cohesion: 0.13
-Nodes (9): AuditConsumer, Test the integrity chain HMAC logic., Test Kafka Producer logic in AuditLogger., Test RLS isolation in AuditConsumer., Test AuditEvent model fields., test_audit_consumer_compute_hash(), test_audit_consumer_postgres_sink_rls_isolation(), test_audit_event_model() (+1 more)
+Cohesion: 0.09
+Nodes (16): AuditMiddleware, BaseHTTPMiddleware, Request, AuditConsumer, Test the integrity chain HMAC logic., Test Kafka Producer logic in AuditLogger., Test RLS isolation in AuditConsumer., Test AuditEvent model fields. (+8 more)
 
 ### Community 36 - "SOARAutomationEngine"
 Cohesion: 0.18
@@ -538,11 +555,11 @@ Nodes (5): create_event_bus(), EventBus, InMemoryEventBus, KafkaEventBus, ABC
 
 ### Community 39 - "MagicMock"
 Cohesion: 0.12
-Nodes (13): test_get_posture(), test_list_frameworks(), test_security_onion_connector(), test_sentinel_connector(), test_splunk_connector(), MagicMock, TestPurpleTeam, test_get_incident_memory() (+5 more)
+Nodes (13): test_get_posture(), test_list_frameworks(), test_graylog_connector(), test_security_onion_connector(), test_splunk_connector(), MagicMock, TestPurpleTeam, test_get_incident_memory() (+5 more)
 
 ### Community 40 - "WazuhConnector"
-Cohesion: 0.08
-Nodes (17): _flatten_to_text(), BaseConnector, datetime, SecurityEvent, Create a persistent async HTTP client., Obtain a JWT from the Wazuh /security/user/authenticate endpoint., Ping the Wazuh API and report connector health., Retrieve alerts from Wazuh created after *since*. (+9 more)
+Cohesion: 0.12
+Nodes (10): BaseConnector, datetime, Create a persistent async HTTP client., Obtain a JWT from the Wazuh /security/user/authenticate endpoint., Ping the Wazuh API and report connector health., Retrieve alerts from Wazuh created after *since*., Mark event IDs as processed.          Wazuh's REST API does not natively support, Close the HTTP client and invalidate the token. (+2 more)
 
 ### Community 41 - "test_digital_twin_e2e.py"
 Cohesion: 0.15
@@ -553,16 +570,16 @@ Cohesion: 0.20
 Nodes (15): triage_agent(), ExplainRequest, get_all_incidents(), get_incident_details(), get_incidents(), get_recommended_triage(), IncidentUpdateRequest, InvestigateRequestBody (+7 more)
 
 ### Community 43 - "trace"
-Cohesion: 0.10
-Nodes (25): lifespan(), CustomJsonFormatter, metrics_worker(), Decorator for Jaeger tracing (via OpenTelemetry) and Prometheus metrics., setup_json_logging(), setup_opentelemetry(), trace(), trace_ai_action() (+17 more)
+Cohesion: 0.11
+Nodes (25): CustomJsonFormatter, metrics_worker(), Decorator for Jaeger tracing (via OpenTelemetry) and Prometheus metrics., setup_json_logging(), setup_opentelemetry(), trace(), trace_ai_action(), copilot_query() (+17 more)
 
 ### Community 44 - "MockFirewallConnector"
 Cohesion: 0.14
 Nodes (10): BaseConnector, EvidenceVault, Any, Hashes the artifact, simulates storage, and returns the chain-of-custody record., Cryptographically hashes artifacts (PCAPs, logs) upon ingest to guarantee chain, MockFirewallConnector, Any, BaseConnector (+2 more)
 
 ### Community 45 - "ApprovalEngine"
-Cohesion: 0.16
-Nodes (7): ApprovalEngine, Any, WebSocket, Manages Human-in-the-Loop (HITL) manual approvals for SOAR Playbooks.     Utiliz, Invoked by the DAGExecutor when a manual approval node is reached.         Publi, Blocks the DAG branch until an approval response is received via WebSocket., Invoked by the WebSocket endpoint when a human responds (e.g., 'approve' or 'rej
+Cohesion: 0.14
+Nodes (8): ApprovalEngine, Any, WebSocket, Manages Human-in-the-Loop (HITL) manual approvals for SOAR Playbooks.     Utiliz, Invoked by the DAGExecutor when a manual approval node is reached.         Publi, Blocks the DAG branch until an approval response is received via WebSocket., Invoked by the WebSocket endpoint when a human responds (e.g., 'approve' or 'rej, Test approval request creation and Slack/Teams notification trigger.
 
 ### Community 46 - "properties"
 Cohesion: 0.15
@@ -581,8 +598,8 @@ Cohesion: 0.60
 Nodes (5): get_project_root(), test_ci_pipeline_has_sast_and_sca(), test_docker_compose_has_security_services(), test_guardrails_config_exists(), test_kong_config_has_security_plugins()
 
 ### Community 50 - "TestOAuth2"
-Cohesion: 0.13
-Nodes (5): create_access_token(), Any, Test OAuth2 token management., TestOAuth2, timedelta
+Cohesion: 0.20
+Nodes (4): create_access_token(), Any, Test OAuth2 token management., TestOAuth2
 
 ### Community 51 - "APIVersioningMiddleware"
 Cohesion: 0.15
@@ -653,8 +670,8 @@ Cohesion: 0.18
 Nodes (10): httpdispatcher, dependencies, httpdispatcher, mongodb, mysql, private, scripts, start (+2 more)
 
 ### Community 70 - "api/main.py"
-Cohesion: 0.08
-Nodes (13): ASGIApp, FastAPI, global_exception_handler(), Exception, Request, Global exception handler to catch unhandled errors and return a structured JSON, TraceMiddleware, get_logger() (+5 more)
+Cohesion: 0.10
+Nodes (15): ASGIApp, lifespan(), FastAPI, global_exception_handler(), Exception, Request, Global exception handler to catch unhandled errors and return a structured JSON, TraceMiddleware (+7 more)
 
 ### Community 71 - "RollbackEngine"
 Cohesion: 0.20
@@ -665,8 +682,8 @@ Cohesion: 0.18
 Nodes (11): type, properties, type, type, type, type, inject.istio.io/templates, podAnnotations (+3 more)
 
 ### Community 73 - "TestAlignmentAndRedTeamCycles"
-Cohesion: 0.18
-Nodes (5): Verify DPO loss math converges correctly., Verify DPO variant generation writes to preference DB., Verify Red Team cycle runner daily deliverables., Verify federated anonymization and FedAvg noise math., TestAlignmentAndRedTeamCycles
+Cohesion: 0.07
+Nodes (18): AgentProfile, LocalMeshClient, MeshClient, NatsMeshClient, ABC, Any, BaseModel, mock_nats_module() (+10 more)
 
 ### Community 74 - "seed_demo_data"
 Cohesion: 0.25
@@ -714,7 +731,7 @@ Nodes (5): Test that client falls back directly to env vars in DEV_MODE., Test s
 
 ### Community 88 - "UserRepository"
 Cohesion: 0.11
-Nodes (10): Asset, AssetCreate, TenantCreate, AssetRepository, AsyncSession, AsyncSession, TenantRepository, Tenant (+2 more)
+Nodes (13): Asset, Asset, AssetCreate, TenantCreate, UserCreate, AssetRepository, AsyncSession, AsyncSession (+5 more)
 
 ### Community 89 - "useStore"
 Cohesion: 0.31
@@ -773,8 +790,8 @@ Cohesion: 0.17
 Nodes (4): BaseConnector, datetime, SecurityEvent, SplunkConnector
 
 ### Community 105 - "TraceMiddleware"
-Cohesion: 0.32
-Nodes (9): create_api_key(), get_api_key(), list_api_keys(), Any, AsyncSession, revoke_api_key(), rotate_api_key(), TestApiKeyEndpoints (+1 more)
+Cohesion: 0.08
+Nodes (3): get_topology(), AsyncSession, simulate()
 
 ### Community 106 - "AzureIAMConnector"
 Cohesion: 0.29
@@ -849,28 +866,32 @@ Cohesion: 0.12
 Nodes (13): Httpbin service, Check ALS output, Cleanup, Open Telemetry ALS, Start otel-collector service, Update Istio configmap, Apply Telemetry API, Check ALS output (+5 more)
 
 ### Community 143 - "TestCircuitBreaker"
-Cohesion: 0.16
-Nodes (10): CircuitBreaker, CircuitBreakerOpenException, Exception, DummyEventBus, test_circuit_breaker_failure_and_open(), test_circuit_breaker_success(), test_jira_ticket_transition(), test_servicenow_incident_create_success() (+2 more)
+Cohesion: 0.24
+Nodes (4): CircuitBreaker, test_circuit_breaker_success(), Test circuit breaker pattern., TestCircuitBreaker
 
 ### Community 145 - "TestDataRetention"
 Cohesion: 0.40
 Nodes (5): unhealthyPodEvictionPolicy, enum, type, AlwaysAllow, IfHealthyBudget
 
+### Community 146 - "TestExplainability"
+Cohesion: 0.18
+Nodes (5): Comprehensive test suite for EDYSOR Production Roadmap modules.  Tests:   - Auth, Test confidence scoring system., Test explainability engine., TestConfidenceScoring, TestExplainability
+
 ### Community 147 - ".__init__"
 Cohesion: 0.13
 Nodes (14): 1. Observation, 1. PostgreSQL Schema & Queries, 2. ClickHouse Schema & Queries, 2. Logic Chain, 3. Caveats, 4. Conclusion, 5. Verification Method, A. Alerts Routes (+6 more)
 
+### Community 148 - ".dispatch"
+Cohesion: 0.18
+Nodes (15): get_current_user(), HTTPAuthorizationCredentials, verify_jwt(), Enum, str, Decorator dependency to enforce Role-Based Access Control (RBAC).     Checks if, require_role(), Role (+7 more)
+
 ### Community 149 - "test_notification_pipeline.py"
-Cohesion: 0.20
-Nodes (5): Test automatic rollback execution for completed actions when playbook fails., Test tenant-specific configuration saving and loading., Test approval request creation and Slack/Teams notification trigger., Test playbook trigger, action creation, and run., TestSOAREngine
+Cohesion: 0.25
+Nodes (4): Test automatic rollback execution for completed actions when playbook fails., Test tenant-specific configuration saving and loading., Test playbook trigger, action creation, and run., TestSOAREngine
 
 ### Community 150 - "setupkind.sh"
 Cohesion: 0.83
 Nodes (3): printHelp(), setupkind.sh script, waitForPods()
-
-### Community 152 - "TestDRTester"
-Cohesion: 0.22
-Nodes (5): Comprehensive test suite for EDYSOR Production Roadmap modules.  Tests:   - Auth, Test disaster recovery tester., Test data retention policies., TestDataRetention, TestDRTester
 
 ### Community 155 - "test-mock.mjs"
 Cohesion: 0.50
@@ -881,8 +902,24 @@ Cohesion: 0.13
 Nodes (14): 1. Apply Secrets, 1. Configure Environment, 2. Deploy Services, 2. Launch the Stack, 3. Verify Health, 🏆 8-Phase Master Validation Suite, 🏗️ Architecture, 🤝 Contributing (+6 more)
 
 ### Community 176 - ".health"
+Cohesion: 0.20
+Nodes (11): get_settings(), BaseSettings, Settings, APIKeyPayload, AuthenticationService, get_current_user(), BaseModel, HTTPAuthorizationCredentials (+3 more)
+
+### Community 194 - "test_agent_trace.py"
+Cohesion: 0.29
+Nodes (5): TenantKeyStore, EnvelopeCryptoService, AsyncSession, Session, wipe_memory()
+
+### Community 195 - "test_investigation.py"
+Cohesion: 0.17
+Nodes (7): WebhookEndpoint, SecretsManager, VaultClient, test_envelope_crypto_tenant_isolation(), test_migration_script(), test_secrets_manager_fail_closed(), test_webhook_delivery_unwrap_dek()
+
+### Community 196 - "test_mitre.py"
+Cohesion: 0.24
+Nodes (9): login(), LoginRequest, AsyncSession, BaseModel, register(), RegisterRequest, get_password_hash(), verify_password() (+1 more)
+
+### Community 198 - "test_threat_intel.py"
 Cohesion: 0.22
-Nodes (7): AuditMiddleware, BaseHTTPMiddleware, Request, Test that AuditMiddleware captures POST/PUT/PATCH/DELETE requests., Test that AuditMiddleware ignores GET requests., test_audit_middleware_captures_mutating_requests(), test_audit_middleware_ignores_get_requests()
+Nodes (6): BaseHTTPMiddleware, Request, Response, RateLimitMiddleware, Sliding window rate limit middleware using Redis.     Rate limits are enforced p, test_rate_limit_success_and_exceeded()
 
 ### Community 230 - "Ambient Reference Architecture w/ Argo"
 Cohesion: 0.14
@@ -1005,8 +1042,8 @@ Cohesion: 0.20
 Nodes (9): 1. Prerequisites & Target Architecture, 2. Step-by-Step Migration Execution, 3. Rollback & Contingency Plan, Phase A: Setup & Provisioning, Phase B: Code Updates & Dependency Integration, Phase C: Data Schema & Storage Migration, Phase D: Environment Variables Updates, Phase E: Verification & Validation Testing (+1 more)
 
 ### Community 260 - "TenantCreate"
-Cohesion: 0.31
-Nodes (6): BaseHTTPMiddleware, Request, TraceMiddleware, create_app(), lifespan(), FastAPI
+Cohesion: 0.29
+Nodes (6): get_incident_details(), get_incidents(), Any, AsyncSession, set_verdict(), update_incident()
 
 ### Community 261 - "ShieldAI SOC Platform: Cloud Architecture"
 Cohesion: 0.22
@@ -1085,8 +1122,8 @@ Cohesion: 0.25
 Nodes (7): 1. Observation, 2. Logic Chain, 3. Caveats, 4. Conclusion, 5. Verification Method, Detailed Review Verdict, Review and Handoff Report
 
 ### Community 280 - "BaseIntegrationWorker"
-Cohesion: 0.31
-Nodes (6): copilot_query(), ExplainRequest, investigation_explain(), BaseModel, FastAPI, QueryRequest
+Cohesion: 0.22
+Nodes (7): _flatten_to_text(), SecurityEvent, Convert a raw Wazuh alert dict into a canonical SecurityEvent., Walk the event dict and pull out IOC-like strings., Recursively flatten a nested dict/list into a single text blob., Map Wazuh numeric rule level to canonical severity string., _severity_from_level()
 
 ### Community 281 - "Bookinfo Sample"
 Cohesion: 0.25
@@ -1185,8 +1222,8 @@ Cohesion: 0.33
 Nodes (5): 1. Routes to KEEP in Node.js, 2. Routes to PROXY to Python (Intelligence Engine), 3. Routes to MIGRATE (Phase 5+), Execution Strategy, Monolith Decomposition Plan (`server.js`)
 
 ### Community 305 - "MockResponse"
-Cohesion: 0.29
-Nodes (5): generate_api_key(), hash_api_key(), Hashes an API key for lookup., Generates a secure API key.     Returns:         tuple: (raw_key, key_prefix, ke, TestApiKeySecurity
+Cohesion: 0.40
+Nodes (3): get_alert_details(), get_alerts(), AsyncSession
 
 ### Community 306 - "Tornado - Demo Websockets App"
 Cohesion: 0.33
@@ -1285,25 +1322,37 @@ Cohesion: 0.10
 Nodes (12): BlueAgent, HypothesisEngineClient, Collects local telemetry without blocking the main event loop., Forwards telemetry summaries to the Cloud Agent Mesh., Specialized agent that queries GraphRAG to generate hypotheses., Ensures the plugin adheres to <300MB RAM, <1% CPU constraints., ResourceMonitor, TelemetryCollector (+4 more)
 
 ### Community 397 - ".calculate_posture"
-Cohesion: 0.29
+Cohesion: 0.25
 Nodes (3): AsyncSession, UserRepository, User
+
+### Community 402 - "TestDataRetention"
+Cohesion: 0.40
+Nodes (3): Test data retention policies., TestDataRetention, timedelta
+
+### Community 403 - ".__init__"
+Cohesion: 0.50
+Nodes (3): AsyncDriver, AsyncQdrantClient, AsyncSession
+
+### Community 404 - "str"
+Cohesion: 0.50
+Nodes (4): ApprovalStatusEnum, ComplianceViolationStatus, PlaybookStatusEnum, str
 
 ## Knowledge Gaps
 - **846 isolated node(s):** `deploy.sh script`, `code`, `eslintConfig`, `nextConfig`, `name` (+841 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **113 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **117 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `AuditLogger` connect `AuditLogger` to `get_settings`, `TestOutputValidation`, `AuditConsumer`, `TestPromptSafety`, `TestRateLimiter`, `TestCircuitBreaker`, `TestDataClassification`, `TestRBAC`, `TestExplainability`, `TestOAuth2`, `.dispatch`, `test_production_roadmap.py`, `TestDRTester`, `TestInputValidation`, `TestCommandExecutor`, `TestCacheManager`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
+- **Why does `AuditLogger` connect `AuditLogger` to `get_settings`, `TestOutputValidation`, `AuditConsumer`, `TestPromptSafety`, `TestRateLimiter`, `TestCircuitBreaker`, `TestDataClassification`, `TestRBAC`, `TestExplainability`, `TestDataRetention`, `TestOAuth2`, `test_production_roadmap.py`, `TestDRTester`, `TestInputValidation`, `TestCommandExecutor`, `TestCacheManager`?**
+  _High betweenness centrality (0.020) - this node is a cross-community bridge._
 - **Why does `test_audit_logger_emit_kafka_pipeline()` connect `AuditConsumer` to `AuditLogger`?**
   _High betweenness centrality (0.014) - this node is a cross-community bridge._
-- **Are the 85 inferred relationships involving `MagicMock` (e.g. with `test_get_posture()` and `test_list_frameworks()`) actually correct?**
-  _`MagicMock` has 85 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 50 inferred relationships involving `RoleEnum` (e.g. with `TokenData` and `Alert`) actually correct?**
-  _`RoleEnum` has 50 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 87 inferred relationships involving `MagicMock` (e.g. with `test_get_posture()` and `test_list_frameworks()`) actually correct?**
+  _`MagicMock` has 87 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 52 inferred relationships involving `RoleEnum` (e.g. with `TokenData` and `LoginRequest`) actually correct?**
+  _`RoleEnum` has 52 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 45 inferred relationships involving `CriticalityEnum` (e.g. with `Alert` and `AlertBase`) actually correct?**
   _`CriticalityEnum` has 45 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 43 inferred relationships involving `SeverityEnum` (e.g. with `Alert` and `AlertBase`) actually correct?**

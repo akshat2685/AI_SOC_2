@@ -20,7 +20,8 @@ try:
 except ImportError:
     from intelligence_engine.core.optimizations import wrap_llm_with_router
 
-_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0)
+api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "dummy_key_for_dev"
+_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
 llm = wrap_llm_with_router(_base_llm)
 detection_engine = AutonomousDetectionEngine()
 soar_engine = SOARAutomationEngine(

@@ -1,32 +1,63 @@
-# Python virtual environment
+# Python virtual environments & packages
 venv/
 .venv/
 env/
+ENV/
+*.egg-info/
+.dist/
+build/
+dist/
 
-# Python cache and compiled files
+# Python bytecode & cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
-# Environment variables and secrets
-**/.env
+# Environment variables & secrets
+.env
+*.env
+!.env.example
 
-# Local database and generated reports
+# Database files & transient data
+*.db
+*.sqlite
+*.sqlite3
 backend/soc.db
 backend/reports/
-*.pdf
+backend/qdrant_local/
+pgdata/
+qdrant_data/
+cowrie_data/
 
-# Editor/IDE settings
+# Graphify cache & backups
+graphify-out/cache/
+graphify-out/202*
+
+# Logs & temp files
+*.log
+server.log
+health_load_test.txt
+load_test_results.txt
+
+# Node.js & Frontend dependencies
+node_modules/
+**/node_modules/
+frontend/dist/
+frontend-old/
+.npm/
+
+# IDE & OS files
 .vscode/
 .idea/
 .DS_Store
-b a c k e n d / q d r a n t _ l o c a l /  
+Thumbs.db
 
-# Frontend
-frontend/node_modules/
-frontend/dist/
-
-# Large Binaries
+# Binaries & archives
 *.msi
 *.exe
+*.zip
+*.tar.gz

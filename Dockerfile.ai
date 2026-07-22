@@ -17,7 +17,7 @@ COPY intelligence_engine/ /app/intelligence_engine/
 RUN chown -R appuser:appuser /app
 
 WORKDIR /app/intelligence_engine
-ENV PYTHONPATH=/app/intelligence_engine
+ENV PYTHONPATH=/app:/app/intelligence_engine
 EXPOSE 8001
 
 USER appuser

@@ -17,8 +17,8 @@ COPY intelligence_engine/ /app/intelligence_engine/
 RUN chown -R appuser:appuser /app
 
 WORKDIR /app/intelligence_engine
-ENV PYTHONPATH=/app/intelligence_engine
+ENV PYTHONPATH=/app:/app/intelligence_engine
 
 USER appuser
 
-CMD ["python", "-c", "import asyncio; from kafka_consumer import consume_events, dlq_consumer_task; async def main(): await asyncio.gather(consume_events(), dlq_consumer_task()); asyncio.run(main())"]
+CMD ["python", "-c", "import asyncio; from kafka_consumer import consume_events, dlq_consumer_task; asyncio.run(asyncio.gather(consume_events(), dlq_consumer_task()))"]
