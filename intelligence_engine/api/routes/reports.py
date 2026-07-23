@@ -1,11 +1,11 @@
-import logging
+import structlog
 import io
 import time
 import json
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["Reports"])
 

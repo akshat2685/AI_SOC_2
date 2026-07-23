@@ -1,5 +1,5 @@
 import time
-import logging
+import structlog
 import os
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -18,13 +18,15 @@ try:
 except ImportError:
     HAS_JWT = False
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Configurable parameters
 DEFAULT_RATE_LIMIT = int(os.getenv("RATE_LIMIT_REQUESTS", "100"))
 DEFAULT_RATE_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is required for rate limit middleware.")
 ALGORITHM = "HS256"
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -56,7 +58,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next) -> Response:
         redis_conn = self.redis_client
         if not HAS_REDIS or not redis_conn:
-            logger.warning("Redis is not available; rate limiting is disabled.")
+            logger.warning("rate_limiting_disabled", reason="redis_unavailable")
             return await call_next(request)
             
         # Retrieve tenant_id, which is populated by TenantMiddleware
@@ -97,7 +99,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 await pipe.execute()
                 
         except Exception as e:
-            logger.error(f"Rate limiting error: {e}")
+            logger.error("rate_limiting_error", error=str(e))
             # Fail open if Redis fails
             pass
 

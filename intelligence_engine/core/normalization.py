@@ -1,11 +1,11 @@
 import re
 import yaml
-import logging
+import structlog
 from datetime import datetime
 import uuid
 from typing import Dict, Any, List, Optional, Callable
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 try:
     from intelligence_engine.connectors.base import SecurityEvent

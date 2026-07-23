@@ -31,7 +31,7 @@ from intelligence_engine.core.webhook_delivery import deliver_webhook
 # 1. Vault fallback and failing closed
 def test_secrets_manager_fail_closed():
     # If vault variables are missing or auth fails, it should raise RuntimeError
-    with patch.dict(os.environ, {}, clear=True):
+    with patch.dict(os.environ, {"TESTING": "false", "ENABLE_VAULT": "true"}, clear=True):
         with patch('intelligence_engine.core.secrets_provider.hvac.Client') as MockClient:
             mock_client_instance = MockClient.return_value
             mock_client_instance.is_authenticated.return_value = False

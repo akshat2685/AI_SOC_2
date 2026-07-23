@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+import structlog
 import hmac
 import hashlib
 from typing import Dict
@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.infrastructure.database import AsyncSessionLocal
 from app.domain.models import AuditEvent
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class AuditConsumer:
     def __init__(self):
@@ -55,10 +55,10 @@ class AuditConsumer:
             await self.consumer.start()
             await self.producer.start()
             
-            logger.info("AuditConsumer started listening.")
+            logger.info("audit_consumer_started")
             asyncio.create_task(self._consume_loop())
         except Exception as e:
-            logger.error(f"Failed to start AuditConsumer: {e}")
+            logger.error("audit_consumer_start_failed", error=str(e))
 
     async def _consume_loop(self):
         try:
@@ -73,7 +73,7 @@ class AuditConsumer:
                     await self._sink_to_postgres(tenant_id, event_data)
                     await self._sink_to_clickhouse(event_data)
                 except Exception as e:
-                    logger.error(f"Failed to process audit event, sending to DLQ: {e}")
+                    logger.error("audit_event_dlq", error=str(e))
                     if self.producer:
                         await self.producer.send_and_wait(
                             self.dlq_topic,
@@ -81,7 +81,7 @@ class AuditConsumer:
                             value=msg.value
                         )
         except Exception as e:
-            logger.error(f"AuditConsumer loop error: {e}")
+            logger.error("audit_consumer_loop_error", error=str(e))
 
     async def _sink_to_postgres(self, tenant_id: int, event_data: dict):
         async with AsyncSessionLocal() as session:

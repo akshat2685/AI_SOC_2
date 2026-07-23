@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import List, Dict, Any
 from taxii2client.v21 import Collection
 import stix2
@@ -8,7 +8,7 @@ try:
 except ImportError:
     from .base_ingestor import BaseIngestor
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class TAXIIIngestor(BaseIngestor):
     def __init__(self, tenant_id: str, collection_url: str, username: str = None, password: str = None, organization_id: str = None):

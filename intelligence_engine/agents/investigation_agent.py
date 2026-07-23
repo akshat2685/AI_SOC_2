@@ -17,14 +17,14 @@ try:
 except ImportError:
     from intelligence_engine.core.optimizations import wrap_llm_with_router
 
-api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or "dummy_key_for_dev"
+api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or ""
 _base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
 llm = wrap_llm_with_router(_base_llm)
 
 # Database configs
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-PG_URL = os.getenv("POSTGRES_URL", "postgresql://soc:changeme_in_production@localhost:5432/soc")
+PG_URL = os.getenv("POSTGRES_URL", "")
 
 class InvestigationState(TypedDict):
     investigation_id: str

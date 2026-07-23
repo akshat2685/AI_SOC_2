@@ -1,10 +1,10 @@
-import logging
+import structlog
 import io
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from typing import Dict, Any, List
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["Connectors"])
 

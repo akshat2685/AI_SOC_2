@@ -1,11 +1,10 @@
 import time
-import logging
+import structlog
 from typing import Dict, Any
 from application.services import AlertProcessingService, IEventBus
 from infrastructure.event_bus import StubKafkaEventBus
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logger = structlog.get_logger(__name__)
 
 class BaseWorker:
     def __init__(self, event_bus: IEventBus):
@@ -24,7 +23,7 @@ class SecurityAlertWorker(BaseWorker):
         self.alert_service = alert_service
 
     def _handle_raw_log(self, event: Dict[str, Any]) -> None:
-        logger.info(f"[Worker] Received raw log: {event}")
+        logger.info("raw_log_received", event_id=event.get("event_id"))
         # Zero-trust: Pass through to service which handles validation
         alert_payload = {
             "id": event.get("event_id", "unknown"),
@@ -34,12 +33,12 @@ class SecurityAlertWorker(BaseWorker):
         }
         success = self.alert_service.process_alert(alert_payload)
         if not success:
-            logger.warning("[Worker] Failed to process alert from raw log - Invalid schema or data.")
+            logger.warning("alert_processing_failed", reason="invalid_schema_or_data")
 
     def start(self) -> None:
-        logger.info("[Worker] Setting up SecurityAlertWorker subscriptions...")
+        logger.info("security_alert_worker_start")
         self.event_bus.subscribe("raw_security_logs", self._handle_raw_log)
-        logger.info("[Worker] SecurityAlertWorker is ready and listening.")
+        logger.info("security_alert_worker_ready")
 
 if __name__ == "__main__":
     # Dependency Injection Setup
@@ -54,4 +53,4 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        logger.info("[Worker] Gracefully shutting down.")
+        logger.info("worker_shutdown")

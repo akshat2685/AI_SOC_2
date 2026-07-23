@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 from typing import List, Dict, Any
 import asyncio
 
@@ -10,7 +10,7 @@ except ImportError:
     from intelligence_engine.core.event_bus import create_event_bus
     from intelligence_engine.api.database import db
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class DistributionEngine:
     def __init__(self, use_kafka: bool = True):

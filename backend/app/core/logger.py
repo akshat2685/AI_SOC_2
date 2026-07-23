@@ -1,30 +1,45 @@
 import logging
+import json
+from typing import Any, Dict
 import structlog
-import sys
-from app.core.config import settings
+from structlog.processors import JSONRenderer
+from pythonjsonlogger import jsonlogger
 
-def setup_logging():
-    logging.basicConfig(
-        format="%(message)s",
-        stream=sys.stdout,
-        level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
+# Configure structlog
+structlog.configure(
+    processors=[
+        structlog.stdlib.filter_by_level,
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        JSONRenderer()
+    ],
+    context_class=dict,
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+
+def setup_logging(log_level: str = "INFO"):
+    """Initialize structured logging for the application."""
+    # Root logger configuration
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, log_level))
+    
+    # JSON handler for stdout
+    json_handler = logging.StreamHandler()
+    json_formatter = jsonlogger.JsonFormatter(
+        '%(timestamp)s %(level)s %(name)s %(message)s'
     )
+    json_handler.setFormatter(json_formatter)
+    root_logger.addHandler(json_handler)
+    
+    # Silence verbose libraries
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("kafka").setLevel(logging.WARNING)
 
-    structlog.configure(
-        processors=[
-            structlog.stdlib.filter_by_level,
-            structlog.stdlib.add_logger_name,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.PositionalArgumentsFormatter(),
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer() if not settings.DEBUG else structlog.dev.ConsoleRenderer(),
-        ],
-        context_class=dict,
-        logger_factory=structlog.stdlib.LoggerFactory(),
-        wrapper_class=structlog.stdlib.BoundLogger,
-        cache_logger_on_first_use=True,
-    )
-
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)

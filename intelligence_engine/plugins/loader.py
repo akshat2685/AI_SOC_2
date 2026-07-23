@@ -2,11 +2,11 @@ import json
 import importlib
 from pathlib import Path
 from typing import Tuple, List, Any
-import logging
+import structlog
 from .registry import PluginRegistry, PluginInfo
 from .manifest import PluginManifest
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 def load_plugin(plugin_dir: Path) -> Tuple[PluginInfo, Any]:
     manifest_path = plugin_dir / "manifest.json"

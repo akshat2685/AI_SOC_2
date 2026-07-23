@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+import structlog
 import time
 import uuid
 import copy
@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Dict, List, Optional
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class AgentProfile(BaseModel):
     agent_id: str = Field(default_factory=lambda: str(uuid.uuid4()))

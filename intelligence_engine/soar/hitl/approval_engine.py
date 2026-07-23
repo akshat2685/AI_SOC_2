@@ -1,10 +1,10 @@
 import json
-import logging
+import structlog
 import asyncio
 from typing import Dict, Any, Optional, Set
 from fastapi import WebSocket
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class ApprovalEngine:
     """

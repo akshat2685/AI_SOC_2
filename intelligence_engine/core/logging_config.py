@@ -1,35 +1,27 @@
-import logging
+import structlog
 import json
+import logging
 import contextvars
 from datetime import datetime
 from typing import Any, Dict
 
 trace_id_var = contextvars.ContextVar('trace_id', default='')
 
-class JSONFormatter(logging.Formatter):
-    def format(self, record: logging.LogRecord) -> str:
-        log_obj: Dict[str, Any] = {
-            "timestamp": datetime.fromtimestamp(record.created).isoformat() + "Z",
-            "level": record.levelname,
-            "logger": record.name,
-            "trace_id": trace_id_var.get(),
-            "message": record.getMessage()
-        }
-        if hasattr(record, "extra"):
-            log_obj["extra"] = record.extra
-        return json.dumps(log_obj)
-
+# Keep stdout logging bridge for structlog chain-of-responsibility
 def setup_logging(level: str = 'INFO'):
-    logger = logging.getLogger()
-    logger.setLevel(level)
-    
-    # Remove existing handlers
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-        
-    handler = logging.StreamHandler()
-    handler.setFormatter(JSONFormatter())
-    logger.addHandler(handler)
+    structlog.configure(
+        processors=[
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
 
-def get_logger(name: str) -> logging.Logger:
-    return logging.getLogger(name)
+def get_logger(name: str) -> structlog.stdlib.BoundLogger:
+    return structlog.get_logger(name)

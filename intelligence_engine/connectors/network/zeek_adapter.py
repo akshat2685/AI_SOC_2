@@ -1,9 +1,9 @@
-import logging
+import structlog
 
 class ZeekAdapter:
     def __init__(self, log_reader):
         self.log_reader = log_reader
-        self.logger = logging.getLogger(__name__)
+        self.logger = structlog.get_logger(__name__)
 
     def extract_flow_logs(self, filter_params):
         """

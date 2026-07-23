@@ -1,9 +1,9 @@
 import asyncio
-import logging
+import structlog
 from typing import Dict, Any
 from .health import HealthChecker
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class ServiceRegistry:
     def __init__(self):

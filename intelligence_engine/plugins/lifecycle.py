@@ -1,8 +1,8 @@
-import logging
+import structlog
 from typing import Dict, Any
 from .registry import PluginRegistry
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class PluginLifecycleManager:
     def __init__(self, registry: PluginRegistry):

@@ -2,13 +2,13 @@ import asyncio
 import json
 import hmac
 import hashlib
-import logging
+import structlog
 from datetime import datetime
 import httpx
 from core.crypto import envelope_crypto
 from core.repository import SessionLocal
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 async def deliver_webhook(tenant_id: int, url: str, secret_encrypted: str, payload: dict, history_id: int):
     if not url.startswith("https://"):

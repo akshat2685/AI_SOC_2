@@ -1,4 +1,4 @@
-import logging
+import structlog
 import json
 from fastapi import APIRouter
 from pydantic import BaseModel
@@ -13,7 +13,7 @@ except ImportError:
     SystemMessage = None
     HumanMessage = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Try to initialize LLM
 try:

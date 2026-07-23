@@ -1,3 +1,4 @@
+from typing import List, Dict, Any, Optional
 import pandas as pd
 import numpy as np
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
@@ -7,14 +8,14 @@ from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.compose import ColumnTransformer
 
 class AutonomousDetectionEngine:
-    def __init__(self, max_window_size: int = 10000):
+    def __init__(self, max_window_size: int = 10000) -> None:
         # Define numerical and categorical features for the pipeline
-        self.numeric_features = ['bytes_in', 'bytes_out', 'duration', 'packet_count']
-        self.categorical_features = ['protocol', 'action']
+        self.numeric_features: List[str] = ['bytes_in', 'bytes_out', 'duration', 'packet_count']
+        self.categorical_features: List[str] = ['protocol', 'action']
         
         # Sliding window for incremental retraining
-        self.max_window_size = max_window_size
-        self.history_window = pd.DataFrame()
+        self.max_window_size: int = max_window_size
+        self.history_window: pd.DataFrame = pd.DataFrame()
         
         # Create preprocessors
         numeric_transformer = Pipeline(steps=[
@@ -43,10 +44,10 @@ class AutonomousDetectionEngine:
             ('model', RandomForestClassifier(n_estimators=100, random_state=42))
         ])
         
-        self.is_anomaly_detector_fitted = False
-        self.is_classifier_fitted = False
+        self.is_anomaly_detector_fitted: bool = False
+        self.is_classifier_fitted: bool = False
 
-    def extract_features(self, events: list[dict]) -> pd.DataFrame:
+    def extract_features(self, events: List[Dict[str, Any]]) -> pd.DataFrame:
         """ Extract features from raw telemetry. Process JSON into a DataFrame. """
         if not events:
             return pd.DataFrame()
@@ -67,9 +68,14 @@ class AutonomousDetectionEngine:
             if col not in df.columns:
                 df[col] = default_val
                 
+        # Fill any remaining NaN values with defaults
+        for col, default_val in expected_cols.items():
+            if col in df.columns and df[col].isna().any():
+                df[col] = df[col].fillna(default_val)
+                
         return df
 
-    def train_anomaly_detector(self, df: pd.DataFrame):
+    def train_anomaly_detector(self, df: pd.DataFrame) -> None:
         """ Train the unsupervised Isolation Forest model using a sliding window. """
         if df.empty:
             raise ValueError("Empty DataFrame provided for training.")
@@ -89,7 +95,7 @@ class AutonomousDetectionEngine:
             self.train_anomaly_detector(df)
         return self.anomaly_detector.predict(df)
         
-    def train_behavior_classifier(self, df: pd.DataFrame, y: np.ndarray):
+    def train_behavior_classifier(self, df: pd.DataFrame, y: np.ndarray) -> None:
         """ Train the supervised Random Forest model. """
         if df.empty:
             raise ValueError("Empty DataFrame provided for training.")
@@ -102,7 +108,7 @@ class AutonomousDetectionEngine:
             raise RuntimeError("Behavior classifier is not fitted yet.")
         return self.behavior_classifier.predict(df)
 
-    def hunt_threats(self, df: pd.DataFrame, historical_context: list[dict] = None) -> list[dict]:
+    def hunt_threats(self, df: pd.DataFrame, historical_context: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
         """ 
         Threat Hunting Agent logic to query past behaviors and correlate with Threat Intel.
         Identifies specific anomalies and returns them as a list of threat records.

@@ -1,9 +1,9 @@
-import logging
+import structlog
 
 class DefenderAdapter:
     def __init__(self, m365_client):
         self.client = m365_client
-        self.logger = logging.getLogger(__name__)
+        self.logger = structlog.get_logger(__name__)
 
     def extract_process_chains(self, device_id, time_range):
         """

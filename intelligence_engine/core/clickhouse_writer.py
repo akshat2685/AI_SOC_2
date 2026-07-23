@@ -1,7 +1,7 @@
 import asyncio
-import logging
 from typing import List, Dict, Any
 import clickhouse_connect
+import structlog
 
 try:
     from kafka_consumer import route_to_dlq
@@ -10,11 +10,12 @@ except ImportError:
         from intelligence_engine.kafka_consumer import route_to_dlq
     except ImportError:
         def route_to_dlq(data, err):
-            logging.error(f"[DLQ Fallback] {err}: {data}")
+            logger = structlog.get_logger(__name__)
+            logger.error("dlq_fallback", error=err, data=data)
 
 from intelligence_engine.core.observability import trace, CLICKHOUSE_LATENCY
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class ClickHouseWriter:
     def __init__(self, host: str, port: int, user: str = 'default', password: str = ''):
@@ -32,45 +33,50 @@ class ClickHouseWriter:
             self.client = clickhouse_connect.get_client(
                 host=self.host, port=self.port, username=self.user, password=self.password
             )
-            logger.info("Connected to ClickHouse")
+            logger.info("clickhouse_connected", host=self.host, port=self.port)
         except Exception as e:
-            logger.error(f"ClickHouse connection failed: {e}")
+            logger.error("clickhouse_connection_failed", host=self.host, port=self.port, error=str(e), exc_info=True)
 
     async def write_batch(self, events: List[Dict[str, Any]]):
         async with self.lock:
             self.buffer.extend(events)
-            should_flush = len(self.buffer) >= self.max_batch_size
-        if should_flush:
-            await self.flush()
+            if len(self.buffer) >= self.max_batch_size:
+                await self._flush_unlocked()
             
     @trace("clickhouse_flush")
     async def flush(self):
         async with self.lock:
-            if not self.buffer or not self.client:
-                return
-            to_flush = self.buffer.copy()
+            await self._flush_unlocked()
+
+    async def _flush_unlocked(self):
+        """Internal flush execution under lock."""
+        if not self.buffer or not self.client:
+            return
+        
+        to_flush = self.buffer.copy()
         
         try:
-            logger.info(f"Flushing {len(to_flush)} events to ClickHouse")
+            logger.info("clickhouse_flush_started", event_count=len(to_flush))
             column_names = list(to_flush[0].keys())
             data = [[event.get(col) for col in column_names] for event in to_flush]
             import time
             start_time = time.time()
-            self.client.insert('soc_events', data, column_names=column_names)
+            
+            # Execute blocking insert call in thread pool to prevent blocking main event loop
+            await asyncio.to_thread(self.client.insert, 'soc_events', data, column_names=column_names)
+            
             duration = time.time() - start_time
             CLICKHOUSE_LATENCY.observe(duration)
-            logger.info(f"Successfully flushed {len(to_flush)} events")
+            logger.info("clickhouse_flush_completed", event_count=len(to_flush), duration_seconds=round(duration, 3))
             
-            async with self.lock:
-                # Remove only the events we successfully flushed
-                self.buffer = self.buffer[len(to_flush):]
+            # Remove only the events we successfully flushed
+            self.buffer = self.buffer[len(to_flush):]
                 
         except Exception as e:
-            logger.error(f"ClickHouse flush failed: {e}")
-            async with self.lock:
-                failed_events = self.buffer[:len(to_flush)]
-                # Still clear the failed events from buffer to prevent memory leak
-                self.buffer = self.buffer[len(to_flush):]
+            logger.error("clickhouse_flush_failed", error=str(e), event_count=len(to_flush), exc_info=True)
+            failed_events = self.buffer[:len(to_flush)]
+            # Still clear the failed events from buffer to prevent memory leak
+            self.buffer = self.buffer[len(to_flush):]
             
             # Send to DLQ
             for event in failed_events:

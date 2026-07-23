@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,7 @@ from app.domain.schemas import (
 )
 from app.core.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 import sys

@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 import json
 import subprocess
 import os
@@ -10,7 +10,7 @@ from typing import Dict, Any, Callable
 from .event_bus import EventBus
 from .secrets_provider import secrets_manager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class CircuitBreakerOpenException(Exception):
     pass

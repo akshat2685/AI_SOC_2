@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 import json
 from typing import Dict, Any, Optional
 from .playbook_parser import PlaybookParser
@@ -10,7 +10,7 @@ except ImportError:
     AIOKafkaConsumer = None
     AIOKafkaProducer = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class DAGExecutor:
     """

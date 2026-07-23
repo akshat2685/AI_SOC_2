@@ -1,10 +1,10 @@
 import asyncio
 import time
-import logging
+import structlog
 from typing import Dict, Any
 from .config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class HealthChecker:
     def __init__(self, registry=None):

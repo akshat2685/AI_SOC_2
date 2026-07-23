@@ -251,7 +251,7 @@ def test_executive_dashboard_and_stats():
     assert "heatmap" in response.json()
 
 def test_trace_id_injection_and_headers(caplog):
-    import logging
+    import structlog
     try:
         from core.logging_config import JSONFormatter
     except ImportError:
@@ -290,7 +290,7 @@ def test_trace_id_extraction_from_headers():
     assert response.headers.get("X-Request-ID") == custom_trace_id
 
 def test_global_exception_handler(caplog):
-    import logging
+    import structlog
     try:
         from core.logging_config import JSONFormatter
     except ImportError:

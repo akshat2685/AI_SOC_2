@@ -1,5 +1,5 @@
 import functools
-import logging
+import structlog
 import time
 import asyncio
 
@@ -11,7 +11,7 @@ try:
 except ImportError:
     tracer = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Prometheus Metrics
 KAFKA_LAG_GAUGE = Gauge("kafka_consumer_lag", "Current lag of the Kafka consumer", ["partition"])
@@ -104,7 +104,6 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 
 def setup_json_logging():
     root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
     logHandler = logging.StreamHandler()
@@ -148,7 +147,7 @@ def trace_ai_action(action_name: str):
 
 async def metrics_worker():
     process = psutil.Process()
-    metrics_logger = logging.getLogger("metrics_worker")
+    metrics_logger = structlog.get_logger("metrics_worker")
     while True:
         try:
             mem_info = process.memory_info()

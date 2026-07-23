@@ -114,6 +114,9 @@ async def test_full_soar_orchestration_e2e():
     
     # 6. Rollback Engine
     rollback_engine = RollbackEngine()
+    # Mock blast radius verification to return True (safe) since Neo4j is not available in tests
+    import unittest.mock
+    rollback_engine.verify_blast_radius = unittest.mock.AsyncMock(return_value=True)
     connector = ConnectorRegistry.get_connector("mock_firewall", context["tenant_id"])
     rollback_success = await rollback_engine.execute_rollback(connector, {"asset_id": "fw_01", "ip": "10.0.0.5"}, context)
     assert rollback_success is True

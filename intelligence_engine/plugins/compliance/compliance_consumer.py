@@ -1,7 +1,7 @@
 import os
 import json
 import asyncio
-import logging
+import structlog
 import uuid
 import time
 from datetime import datetime, timezone
@@ -18,11 +18,10 @@ try:
 except ImportError:
     from core.notification_router import router as notification_router
 
-logger = logging.getLogger("compliance_consumer")
-logging.basicConfig(level=logging.INFO)
+logger = structlog.get_logger("compliance_consumer")
 
-KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
-POSTGRES_URL = os.getenv("POSTGRES_URL", "postgresql://soc:changeme_in_production@postgres:5432/soc")
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "")
+POSTGRES_URL = os.getenv("POSTGRES_URL", "")
 TOPICS = ["soc_telemetry", "audit_events"]
 
 class ComplianceEvaluator:

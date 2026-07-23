@@ -1,9 +1,9 @@
-import logging
+import structlog
 
 class PaloAltoAdapter:
     def __init__(self, panorama_client):
         self.client = panorama_client
-        self.logger = logging.getLogger(__name__)
+        self.logger = structlog.get_logger(__name__)
 
     def extract_flow_logs(self, query, time_range):
         """

@@ -5,9 +5,9 @@ import os
 import time
 import functools
 import importlib
-import logging
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # 1. Lazy Loading Module Manager
 class LazyLoader:

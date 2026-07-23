@@ -231,18 +231,22 @@ class TestStorageContextAndMultiModalClients:
 
     @pytest.mark.asyncio
     async def test_dispose_engine_with_clients(self):
-        from app.infrastructure.storage import engine
+        import sys
+        # Resolve the actual module via sys.modules to bypass the package-level
+        # namespace collision caused by `__init__.py` re-exporting `engine`.
+        engine_module = sys.modules['app.infrastructure.storage.engine']
+        from app.infrastructure.storage.engine import dispose_engine
         
         mock_engine = AsyncMock()
         mock_neo4j = AsyncMock()
         mock_qdrant = AsyncMock()
         mock_qdrant.close = AsyncMock()
         
-        with patch.object(engine, 'engine', mock_engine), \
-             patch.object(engine, 'neo4j_driver', mock_neo4j), \
-             patch.object(engine, 'qdrant_client', mock_qdrant):
+        with patch.object(engine_module, 'engine', mock_engine), \
+             patch.object(engine_module, 'neo4j_driver', mock_neo4j), \
+             patch.object(engine_module, 'qdrant_client', mock_qdrant):
              
-             await engine.dispose_engine()
+             await dispose_engine()
              
              mock_engine.dispose.assert_called_once()
              mock_neo4j.close.assert_called_once()

@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 import asyncio
 from typing import Optional
 
@@ -10,7 +10,7 @@ except ImportError:
 
 from .graph_manager import TwinGraphManager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class TwinSyncConsumer:
     """

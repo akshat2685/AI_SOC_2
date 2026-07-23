@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import List, Dict, Any
 from pymisp import ExpandedPyMISP
 
@@ -7,7 +7,7 @@ try:
 except ImportError:
     from .base_ingestor import BaseIngestor
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class MISPIngestor(BaseIngestor):
     def __init__(self, tenant_id: str, url: str, key: str, verifycert: bool = True, organization_id: str = None):

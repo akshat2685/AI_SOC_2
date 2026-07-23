@@ -1,6 +1,6 @@
 import pytest
 import asyncio
-import logging
+import structlog
 from unittest.mock import patch, MagicMock, AsyncMock
 from intelligence_engine.core.observability import (
     trace, PROCESSING_LATENCY, setup_opentelemetry, 

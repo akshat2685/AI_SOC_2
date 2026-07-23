@@ -1,0 +1,32 @@
+name: Build Container Images
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.backend-prod
+          push: false
+          tags: shieldai/backend:latest
+
+      - name: Build Worker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.worker-prod
+          push: false
+          tags: shieldai/worker:latest

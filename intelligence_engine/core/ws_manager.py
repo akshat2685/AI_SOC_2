@@ -1,13 +1,13 @@
 import asyncio
 import json
-import logging
+import structlog
 from typing import Dict, Set
 from fastapi import WebSocket, WebSocketDisconnect
 from jose import jwt, JWTError
 import redis.asyncio as redis
 from .config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class ConnectionManager:
     def __init__(self):

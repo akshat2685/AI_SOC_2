@@ -1,12 +1,14 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter
+from slowapi.errors import RateLimitExceeded
+
 from app.core.config import settings
 from app.core.logger import setup_logging, logger
 from app.api.middleware.auth_middleware import DualAuthMiddleware
 from app.api.middleware.trace_middleware import TraceMiddleware
 from app.api.middleware.audit_middleware import AuditMiddleware
+from app.api.middleware.rate_limit_middleware import limiter, _rate_limit_exceeded_handler
 from app.application.audit_logger import audit_logger
-from app.api.v1 import api_keys, notifications
 
 # Initialize structured logging
 setup_logging()
@@ -26,6 +28,9 @@ def create_app() -> FastAPI:
         version=settings.VERSION,
         lifespan=lifespan
     )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
     app.add_middleware(TraceMiddleware)
     app.add_middleware(DualAuthMiddleware)

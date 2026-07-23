@@ -1,6 +1,6 @@
 import asyncio
 import json
-import logging
+import structlog
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
@@ -38,9 +38,9 @@ async def _update_history_status(history_id: int, status: str, attempts: int, er
             })
             session.commit()
     except Exception as e:
-        logging.error(f"Failed to update history {history_id}: {e}")
+        logger.error(f"Failed to update history {history_id}: {e}")
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
 

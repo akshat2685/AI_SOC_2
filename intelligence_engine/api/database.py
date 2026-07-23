@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import Any, Dict, List, Optional
 
 try:
@@ -6,7 +6,7 @@ try:
 except ImportError:
     from intelligence_engine.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 try:

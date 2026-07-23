@@ -1,8 +1,8 @@
-import logging
+import structlog
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from typing import Dict, List, Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/digital-twin", tags=["digital-twin"])
 

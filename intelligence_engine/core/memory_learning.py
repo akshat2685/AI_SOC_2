@@ -1,6 +1,5 @@
 import os
 import json
-import psycopg
 from typing import Dict, Any, List, Optional
 
 class MemoryLearningSystem:
@@ -8,6 +7,7 @@ class MemoryLearningSystem:
         self.dsn = dsn or os.getenv("POSTGRES_DSN", "postgresql://postgres:postgres@localhost:5432/ai_soc")
 
     def _get_connection(self):
+        import psycopg
         return psycopg.connect(self.dsn)
 
     def initialize_schema(self):

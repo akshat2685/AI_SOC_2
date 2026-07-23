@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import structlog
 import time
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Depends
@@ -72,7 +72,7 @@ try:
 except ImportError:
     from intelligence_engine.api.database import db
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 @asynccontextmanager

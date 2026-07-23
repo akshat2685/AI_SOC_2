@@ -1,7 +1,7 @@
-import logging
+import structlog
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class ResourceMonitor:
     """Ensures the plugin adheres to <300MB RAM, <1% CPU constraints."""

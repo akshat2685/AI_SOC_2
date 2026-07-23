@@ -1,5 +1,5 @@
 import json
-import logging
+import structlog
 from typing import Optional, List, Dict
 from fastapi import HTTPException, Security, Request, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, APIKeyHeader
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import hashlib
 from intelligence_engine.core.config import get_settings, Settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Security components
 security_scheme = HTTPBearer(auto_error=False)

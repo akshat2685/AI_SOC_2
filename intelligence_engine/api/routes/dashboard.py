@@ -1,9 +1,9 @@
-import logging
+import structlog
 import random
 from fastapi import APIRouter
 from typing import Dict, Any, List
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["Dashboard"])
 

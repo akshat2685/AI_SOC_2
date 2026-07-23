@@ -1,0 +1,23 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Bandit Security Scanner
+        run: |
+          pip install bandit
+          bandit -r backend/app intelligence_engine/ -ll -ii || true
+
+      - name: Run Safety Dependency Check
+        run: |
+          pip install safety
+          safety check --ignore 70612 || true

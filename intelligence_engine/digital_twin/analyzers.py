@@ -1,8 +1,8 @@
-import logging
+import structlog
 from typing import Dict, Any, List
 from .core.graph_manager import TwinGraphManager
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class VulnerabilityOverlay:
     """

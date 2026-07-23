@@ -1,9 +1,9 @@
 import hashlib
-import logging
+import structlog
 from datetime import datetime, timezone
 from typing import Dict, Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class EvidenceVault:
     """

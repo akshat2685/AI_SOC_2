@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import Type, TypeVar, Generic, Optional, Any, List, Dict
 from sqlalchemy import create_engine, Column, String, Index
 from sqlalchemy.orm import declarative_base, sessionmaker, Session, declared_attr
@@ -8,7 +8,7 @@ try:
 except ImportError:
     from intelligence_engine.core.config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 settings = get_settings()
 
 engine = create_engine(settings.db.postgres_url.replace("postgresql://", "postgresql+psycopg2://") if settings.db.postgres_url else "sqlite:///./soc.db")

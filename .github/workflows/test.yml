@@ -1,0 +1,39 @@
+name: Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements.memory.txt
+          pip install pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic psycopg
+
+      - name: Run Pytest Suite
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'test_gemini_key' }}
+          SOAR_API_KEY: ${{ secrets.SOAR_API_KEY || 'test_soar_key' }}
+          SOAR_API_ENDPOINT: "https://api.test.example.com/v1/containment"
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+        run: |
+          python -m pytest tests/ --cov=backend/app --cov=intelligence_engine --cov-report=xml
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml

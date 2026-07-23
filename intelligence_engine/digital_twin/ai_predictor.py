@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import Dict, Any, Optional
 
 try:
@@ -6,7 +6,7 @@ try:
 except ImportError:
     AsyncQdrantClient = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class LangGraphRiskPredictor:
     """

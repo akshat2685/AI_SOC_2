@@ -7,11 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from .secrets_provider import secrets_manager
 from backend.app.domain.models import TenantKeyStore
-import logging
+import structlog
 import ctypes
 import sys
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 def wipe_memory(b):
     if isinstance(b, bytearray):

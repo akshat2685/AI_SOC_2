@@ -1,9 +1,9 @@
-import logging
+import structlog
 
 class CrowdStrikeAdapter:
     def __init__(self, api_client):
         self.api_client = api_client
-        self.logger = logging.getLogger(__name__)
+        self.logger = structlog.get_logger(__name__)
 
     def extract_process_trees(self, host_id, timeframe):
         """

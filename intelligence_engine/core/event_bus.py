@@ -2,11 +2,11 @@ import json
 import asyncio
 from abc import ABC, abstractmethod
 from typing import Callable, Any
-import logging
+import structlog
 from confluent_kafka import Producer, Consumer
 from .config import get_settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class EventBus(ABC):
     @abstractmethod

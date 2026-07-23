@@ -1,12 +1,12 @@
-import logging
 from typing import Dict, Any
+import structlog
 
 try:
     from neo4j import AsyncGraphDatabase
 except ImportError:
     AsyncGraphDatabase = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class RollbackEngine:
     """
@@ -17,12 +17,15 @@ class RollbackEngine:
         self.neo4j_uri = neo4j_uri
         self.driver = None
         
-    async def connect(self, user="neo4j", password="password"):
+    async def connect(self, user=None, password=None):
         if AsyncGraphDatabase:
             try:
+                import os
+                user = user or os.getenv("NEO4J_USER", "")
+                password = password or os.getenv("NEO4J_PASSWORD", "")
                 self.driver = AsyncGraphDatabase.driver(self.neo4j_uri, auth=(user, password))
             except Exception as e:
-                logger.warning(f"Neo4j driver init failed in RollbackEngine: {e}")
+                logger.warning("neo4j_driver_init_failed", error=str(e), exc_info=True)
 
     async def disconnect(self):
         if self.driver:
@@ -49,7 +52,7 @@ class RollbackEngine:
                 critical_deps = record["critical_deps"] if record else 0
                 return critical_deps == 0 # Safe if no high criticality downstream deps
         except Exception as e:
-            logger.error(f"Error querying blast radius in Neo4j: {e}")
+            logger.error("blast_radius_query_failed", error=str(e), exc_info=True)
             return False # Fail safe: do not rollback if we can't verify
 
     async def execute_rollback(self, connector, action_params: Dict[str, Any], context: Dict[str, Any]) -> bool:

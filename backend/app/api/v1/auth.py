@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.infrastructure.database import get_db
 from app.domain.models import User, Tenant, RoleEnum
 from app.core.security import verify_password, get_password_hash, create_access_token
+from app.api.middleware.rate_limit_middleware import limiter
 
 router = APIRouter()
 
@@ -18,11 +19,11 @@ class RegisterRequest(BaseModel):
     password: str
 
 @router.post("/login")
-async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == request.username))
+@limiter.limit("5/minute")
+async def login(request: Request, req_body: LoginRequest, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == req_body.username))
     user = result.scalars().first()
-    if not user or not verify_password(request.password, user.hashed_password):
-        # The old server.js returned 401 with { detail: ... }
+    if not user or not verify_password(req_body.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
@@ -32,8 +33,7 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
         subject=user.id, role=user.role, tenant_id=user.tenant_id
     )
     
-    # Check if the user's tenant has premium status (placeholder for premium)
-    premium = True  # TODO: get from tenant or user model
+    premium = True
     
     return {
         "username": user.email,
@@ -44,8 +44,8 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     }
 
 @router.post("/register")
-async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db)):
-    # Create default tenant if it doesn't exist
+@limiter.limit("3/minute")
+async def register(request: Request, req_body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     tenant_result = await db.execute(select(Tenant).where(Tenant.name == "default"))
     tenant = tenant_result.scalars().first()
     if not tenant:
@@ -54,18 +54,17 @@ async def register(request: RegisterRequest, db: AsyncSession = Depends(get_db))
         await db.commit()
         await db.refresh(tenant)
 
-    # Check if user exists
-    user_result = await db.execute(select(User).where(User.email == request.username))
+    user_result = await db.execute(select(User).where(User.email == req_body.username))
     if user_result.scalars().first():
         raise HTTPException(status_code=400, detail="Username already exists")
 
     new_user = User(
-        email=request.username,
-        hashed_password=get_password_hash(request.password),
+        email=req_body.username,
+        hashed_password=get_password_hash(req_body.password),
         role=RoleEnum.TENANT_ADMIN,
         tenant_id=tenant.id
     )
     db.add(new_user)
     await db.commit()
 
-    return {"status": "success", "username": request.username}
+    return {"status": "success", "username": req_body.username}

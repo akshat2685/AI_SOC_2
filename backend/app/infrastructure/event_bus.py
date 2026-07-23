@@ -1,12 +1,11 @@
 import json
-import logging
+import structlog
 from typing import Dict, Any, Callable, List
 
 # Adhering to Dependency Inversion Principle, implement the interface defined in application layer.
 from application.services import IEventBus
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger = structlog.get_logger(__name__)
 
 class StubKafkaEventBus(IEventBus):
     """
@@ -16,26 +15,26 @@ class StubKafkaEventBus(IEventBus):
         self._subscribers: Dict[str, List[Callable[[Dict[str, Any]], None]]] = {}
 
     def publish(self, topic: str, message: Dict[str, Any]) -> None:
-        logger.info(f"[Kafka Stub] Publishing to '{topic}': {json.dumps(message)}")
+        logger.info("kafka_stub_publish", topic=topic)
         if topic in self._subscribers:
             for handler in self._subscribers[topic]:
                 try:
                     handler(message)
                 except Exception as e:
-                    logger.error(f"Error handling message on topic {topic}: {e}")
+                    logger.error("kafka_stub_handler_error", topic=topic, error=str(e))
 
     def subscribe(self, topic: str, handler: Callable[[Dict[str, Any]], None]) -> None:
         if topic not in self._subscribers:
             self._subscribers[topic] = []
         self._subscribers[topic].append(handler)
-        logger.info(f"[Kafka Stub] Subscribed handler to '{topic}'")
+        logger.info("kafka_stub_subscribe", topic=topic)
 
 class StubRedisEventBus(IEventBus):
     """
     Redis PubSub event bus stub implementation.
     """
     def publish(self, topic: str, message: Dict[str, Any]) -> None:
-        logger.info(f"[Redis Stub] Publishing to '{topic}': {json.dumps(message)}")
+        logger.info("redis_stub_publish", topic=topic)
 
     def subscribe(self, topic: str, handler: Callable[[Dict[str, Any]], None]) -> None:
-        logger.info(f"[Redis Stub] Subscribed handler to '{topic}'")
+        logger.info("redis_stub_subscribe", topic=topic)

@@ -1,7 +1,9 @@
 import json
 import time
-import logging
+import structlog
 from app.core.config import settings
+
+logger = structlog.get_logger(__name__)
 
 class AuditLogger:
     def __init__(self):
@@ -15,14 +17,14 @@ class AuditLogger:
                 bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS
             )
             await self.producer.start()
-            logging.info("AuditLogger started")
+            logger.info("audit_logger_started")
         except Exception as e:
-            logging.error(f"Failed to start AuditLogger: {e}")
+            logger.error("audit_logger_start_failed", error=str(e))
         
     async def stop(self):
         if self.producer:
             await self.producer.stop()
-            logging.info("AuditLogger stopped")
+            logger.info("audit_logger_stopped")
 
     def emit(self, action: str, tenant_id: int, user_id: int = None, trace_id: str = None, details: dict = None):
         """Asynchronously emit an event to Kafka."""
@@ -45,8 +47,8 @@ class AuditLogger:
                     value=json.dumps(event).encode('utf-8')
                 ))
             except Exception as e:
-                logging.error(f"Failed to emit audit log to Kafka: {e}")
+                logger.error("audit_emit_failed", error=str(e), action=action, tenant_id=tenant_id)
         else:
-            logging.warning(f"AuditLogger producer not initialized. Event: {event}")
+            logger.warning("audit_logger_not_initialized", action=action, tenant_id=tenant_id)
 
 audit_logger = AuditLogger()

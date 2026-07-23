@@ -1,4 +1,4 @@
-import logging
+import structlog
 from typing import List, Dict, Any
 
 try:
@@ -7,7 +7,7 @@ try:
 except ImportError:
     AsyncGraphDatabase = None
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class TwinGraphManager:
     """
@@ -20,7 +20,7 @@ class TwinGraphManager:
         import os
         self.uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
         self.user = user or os.getenv("NEO4J_USER", "neo4j")
-        self.password = password or os.getenv("NEO4J_PASSWORD", "password")
+        self.password = password or os.getenv("NEO4J_PASSWORD", "")
         self.driver = None
 
     async def connect(self):

@@ -1,4 +1,4 @@
-import logging
+import structlog
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
@@ -10,9 +10,11 @@ try:
 except ImportError:
     HAS_JWT = False
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key")
+SECRET_KEY = os.getenv("SECRET_KEY", "")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is required for TenantMiddleware.")
 ALGORITHM = "HS256"
 DEFAULT_TENANT_ID = "default-tenant"
 

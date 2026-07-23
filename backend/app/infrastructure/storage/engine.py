@@ -1,5 +1,5 @@
 import os
-import logging
+import structlog
 from typing import Optional, Any
 from sqlalchemy.ext.asyncio import (
     create_async_engine,
@@ -19,7 +19,7 @@ try:
 except ImportError:
     AsyncQdrantClient = Any
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL", os.getenv("POSTGRES_URL", "sqlite+aiosqlite:///./ai_soc.db"))
 if DATABASE_URL and DATABASE_URL.startswith("postgresql://"):
@@ -71,14 +71,14 @@ if AsyncGraphDatabase:
     try:
         neo4j_driver = AsyncGraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
     except Exception as e:
-        logger.warning(f"Neo4j driver initialization failed: {e}")
+        logger.warning("neo4j_driver_init_failed", error=str(e), exc_info=True)
 
 qdrant_client: Optional[AsyncQdrantClient] = None
 if AsyncQdrantClient:
     try:
         qdrant_client = AsyncQdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY if QDRANT_API_KEY else None)
     except Exception as e:
-        logger.warning(f"Qdrant client initialization failed: {e}")
+        logger.warning("qdrant_client_init_failed", error=str(e), exc_info=True)
 
 class StorageContext:
     """

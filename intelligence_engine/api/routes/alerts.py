@@ -1,12 +1,15 @@
-import logging
 import io
 import uuid
-from fastapi import APIRouter, HTTPException, Query, Body, Depends
-from fastapi.responses import StreamingResponse
+import time
+import json
+from fastapi import APIRouter, HTTPException, Query, Body, Depends, BackgroundTasks
+from fastapi.responses import StreamingResponse, JSONResponse
+from starlette import status
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+import structlog
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
@@ -84,7 +87,7 @@ def get_all_alerts():
             })
         return alerts
     except Exception as e:
-        logger.warning(f"Failed to query alerts from PostgreSQL, falling back to mock data: {e}")
+        logger.warning("alerts_query_failed_fallback_to_mock", error=str(e), exc_info=True)
         return [
             {
                 "id": 101,
@@ -117,9 +120,19 @@ def get_all_alerts():
         ]
 
 @router.get("")
-async def get_alerts():
+async def get_alerts(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    tenant_id: Optional[str] = Query(None),
+):
     alerts_list = get_all_alerts()
-    return {"alerts": alerts_list}
+    # Apply tenant filter
+    if tenant_id:
+        alerts_list = [a for a in alerts_list if a.get("tenant_id") == tenant_id]
+    # Apply pagination
+    alerts_list = alerts_list[skip:skip + limit]
+    logger.info("alerts_listed", count=len(alerts_list), tenant_id=tenant_id)
+    return {"alerts": alerts_list, "total": len(alerts_list), "skip": skip, "limit": limit}
 
 @router.post("")
 async def create_alert(alert: Dict[str, Any]):
@@ -147,7 +160,7 @@ async def create_alert(alert: Dict[str, Any]):
         ), fetch=False)
         return {"status": "success", "alert": alert}
     except Exception as e:
-        logger.error(f"Failed to persist alert in PostgreSQL: {e}")
+        logger.error("alert_persist_failed", error=str(e), exc_info=True)
         return {"status": "success", "alert": alert, "note": "Failed to persist to PostgreSQL, using memory."}
 
 @router.get("/{id}")
@@ -170,14 +183,28 @@ async def get_alert_investigation(id: int):
         "ai_conclusion": "Strong indicator of automated credential attack."
     }
 
-@router.post("/{id}/investigate")
+def _emit_audit_log(action: str, alert_id: str, tenant_id: str = "default"):
+    """Simple audit emission via structlog for the intelligence engine."""
+    logger.info("audit_event",
+        action=action,
+        alert_id=alert_id,
+        tenant_id=tenant_id,
+        timestamp=int(time.time() * 1000),
+    )
+
+@router.post("/{id}/investigate", status_code=status.HTTP_202_ACCEPTED)
 async def trigger_investigation(
     id: int,
+    background_tasks: BackgroundTasks,
     body: Optional[InvestigateRequestBody] = None,
-    alert_id: Optional[str] = Query(None)
+    alert_id: Optional[str] = Query(None),
+    x_tenant_id: Optional[str] = None,
 ):
     # Accept from path parameter 'id', body, or query 'alert_id'
     target_alert_id = alert_id or (body.alert_id if body else None) or str(id)
+    
+    # Emit audit event
+    background_tasks.add_task(_emit_audit_log, "investigation_triggered", target_alert_id, x_tenant_id or "default")
     
     try:
         from agents.investigation_agent import build_investigation_graph
@@ -188,11 +215,14 @@ async def trigger_investigation(
             build_investigation_graph = None
 
     if build_investigation_graph is None:
-        return {
-            "status": "triggered",
-            "alert_id": target_alert_id,
-            "message": "ShieldAI Investigation Orchestrator started asynchronous Deep Analysis (Fallback)."
-        }
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "status": "triggered",
+                "alert_id": target_alert_id,
+                "message": "ShieldAI Investigation Orchestrator started asynchronous Deep Analysis (Fallback)."
+            }
+        )
     
     # Run graph
     try:
@@ -222,19 +252,25 @@ async def trigger_investigation(
         }
         # Run in background or wait depending on response pattern
         result = await app_graph.ainvoke(initial_state)
-        return {
-            "status": "triggered",
-            "alert_id": target_alert_id,
-            "investigation_id": result.get("investigation_id"),
-            "message": "ShieldAI Investigation Orchestrator started asynchronous Deep Analysis."
-        }
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "status": "triggered",
+                "alert_id": target_alert_id,
+                "investigation_id": result.get("investigation_id"),
+                "message": "ShieldAI Investigation Orchestrator started asynchronous Deep Analysis."
+            }
+        )
     except Exception as e:
-        logger.error(f"Error running investigation agent: {e}")
-        return {
-            "status": "triggered",
-            "alert_id": target_alert_id,
-            "message": f"ShieldAI Investigation Orchestrator started asynchronous Deep Analysis. (Error: {str(e)})"
-        }
+        logger.error("investigation_agent_error", alert_id=target_alert_id, error=str(e), exc_info=True)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content={
+                "status": "triggered",
+                "alert_id": target_alert_id,
+                "message": f"ShieldAI Investigation Orchestrator started asynchronous Deep Analysis. (Error: {str(e)})"
+            }
+        )
 
 @router.get("/{id}/report.pdf")
 async def get_alert_report_pdf(id: int):

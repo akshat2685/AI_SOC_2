@@ -1,11 +1,11 @@
-import logging
+import structlog
 import json
 import time
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["Playbooks"])
 

@@ -1,6 +1,6 @@
 """Wazuh SIEM connector — async HTTP integration via the Wazuh REST API."""
 
-import logging
+import structlog
 import os
 import re
 import time
@@ -11,7 +11,7 @@ import httpx
 
 from intelligence_engine.connectors.base import BaseConnector, SecurityEvent
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Wazuh rule-group → MITRE ATT&CK technique mapping (common subset)
