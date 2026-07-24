@@ -1,35 +1,110 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 
 interface MultiplayerCursorProps {
   incidentId: string;
 }
 
+const HEARTBEAT_INTERVAL_MS = 30_000; // ping every 30 s
+const MAX_RECONNECT_DELAY_MS = 30_000; // cap back-off at 30 s
+const BASE_RECONNECT_DELAY_MS = 1_000; // start at 1 s
+
 export default function MultiplayerCursor({ incidentId }: MultiplayerCursorProps) {
   const [peers, setPeers] = useState<Record<string, { x: number; y: number }>>({});
   const wsRef = useRef<WebSocket | null>(null);
   const myId = useRef<string>('');
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reconnectAttemptRef = useRef<number>(0);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef<boolean>(false);
 
-  useEffect(() => {
-    myId.current = `analyst_${Math.random().toString(36).substring(2, 7)}`;
-    // Connect to FastAPI WebSocket
+  const clearHeartbeat = () => {
+    if (heartbeatRef.current !== null) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
+  };
+
+  const clearReconnectTimer = () => {
+    if (reconnectTimerRef.current !== null) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+  };
+
+  const connect = useCallback(() => {
+    if (unmountedRef.current) return;
+
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/incident/${incidentId}`);
     wsRef.current = ws;
 
+    ws.onopen = () => {
+      // Reset back-off on successful connection
+      reconnectAttemptRef.current = 0;
+
+      // Start heartbeat: send a ping frame every 30 s so Cloud Run / proxies
+      // don't close the idle connection.
+      clearHeartbeat();
+      heartbeatRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping', userId: myId.current }));
+        }
+      }, HEARTBEAT_INTERVAL_MS);
+    };
+
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'CURSOR_MOVE') {
-        setPeers(prev => ({
-          ...prev,
-          [data.userId]: { x: data.x, y: data.y }
-        }));
-      } else if (data.type === 'USER_LEFT') {
-        // Handle disconnect cleanup if necessary
+      try {
+        const data = JSON.parse(event.data as string);
+        if (data.type === 'CURSOR_MOVE') {
+          setPeers(prev => ({
+            ...prev,
+            [data.userId]: { x: data.x, y: data.y }
+          }));
+        } else if (data.type === 'USER_LEFT') {
+          setPeers(prev => {
+            const next = { ...prev };
+            delete next[data.userId];
+            return next;
+          });
+        }
+        // 'pong' messages from server are silently ignored
+      } catch {
+        // ignore malformed frames
       }
     };
 
+    ws.onerror = () => {
+      // onclose will fire immediately after onerror — reconnect logic lives there
+    };
+
+    ws.onclose = () => {
+      clearHeartbeat();
+      if (unmountedRef.current) return;
+
+      // Exponential back-off with jitter, capped at MAX_RECONNECT_DELAY_MS
+      const attempt = reconnectAttemptRef.current;
+      const delay = Math.min(
+        BASE_RECONNECT_DELAY_MS * 2 ** attempt + Math.random() * 500,
+        MAX_RECONNECT_DELAY_MS
+      );
+      reconnectAttemptRef.current = attempt + 1;
+
+      clearReconnectTimer();
+      reconnectTimerRef.current = setTimeout(() => {
+        connect();
+      }, delay);
+    };
+  }, [incidentId]);
+
+  useEffect(() => {
+    unmountedRef.current = false;
+    myId.current = `analyst_${Math.random().toString(36).substring(2, 7)}`;
+
+    connect();
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (ws.readyState === WebSocket.OPEN) {
+      const ws = wsRef.current;
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
           type: 'CURSOR_MOVE',
           userId: myId.current,
@@ -42,15 +117,18 @@ export default function MultiplayerCursor({ incidentId }: MultiplayerCursorProps
     window.addEventListener('mousemove', handleMouseMove);
 
     return () => {
+      unmountedRef.current = true;
       window.removeEventListener('mousemove', handleMouseMove);
-      ws.close();
+      clearHeartbeat();
+      clearReconnectTimer();
+      wsRef.current?.close();
     };
-  }, [incidentId]);
+  }, [connect]);
 
   return (
     <>
       {Object.entries(peers).map(([id, pos]) => (
-        <div 
+        <div
           key={id}
           className="pointer-events-none fixed z-50 flex items-center gap-2 transition-transform duration-75"
           style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
