@@ -31,74 +31,66 @@ export default function MultiplayerCursor({ incidentId }: MultiplayerCursorProps
     }
   };
 
-  const connect = useCallback(() => {
-    if (unmountedRef.current) return;
-
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/incident/${incidentId}`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      // Reset back-off on successful connection
-      reconnectAttemptRef.current = 0;
-
-      // Start heartbeat: send a ping frame every 30 s so Cloud Run / proxies
-      // don't close the idle connection.
-      clearHeartbeat();
-      heartbeatRef.current = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'ping', userId: myId.current }));
-        }
-      }, HEARTBEAT_INTERVAL_MS);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data as string);
-        if (data.type === 'CURSOR_MOVE') {
-          setPeers(prev => ({
-            ...prev,
-            [data.userId]: { x: data.x, y: data.y }
-          }));
-        } else if (data.type === 'USER_LEFT') {
-          setPeers(prev => {
-            const next = { ...prev };
-            delete next[data.userId];
-            return next;
-          });
-        }
-        // 'pong' messages from server are silently ignored
-      } catch {
-        // ignore malformed frames
-      }
-    };
-
-    ws.onerror = () => {
-      // onclose will fire immediately after onerror — reconnect logic lives there
-    };
-
-    ws.onclose = () => {
-      clearHeartbeat();
-      if (unmountedRef.current) return;
-
-      // Exponential back-off with jitter, capped at MAX_RECONNECT_DELAY_MS
-      const attempt = reconnectAttemptRef.current;
-      const delay = Math.min(
-        BASE_RECONNECT_DELAY_MS * 2 ** attempt + Math.random() * 500,
-        MAX_RECONNECT_DELAY_MS
-      );
-      reconnectAttemptRef.current = attempt + 1;
-
-      clearReconnectTimer();
-      reconnectTimerRef.current = setTimeout(() => {
-        connect();
-      }, delay);
-    };
-  }, [incidentId]);
-
   useEffect(() => {
     unmountedRef.current = false;
     myId.current = `analyst_${Math.random().toString(36).substring(2, 7)}`;
+
+    function connect() {
+      if (unmountedRef.current) return;
+
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/incident/${incidentId}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        reconnectAttemptRef.current = 0;
+        clearHeartbeat();
+        heartbeatRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping', userId: myId.current }));
+          }
+        }, HEARTBEAT_INTERVAL_MS);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data as string);
+          if (data.type === 'CURSOR_MOVE') {
+            setPeers(prev => ({
+              ...prev,
+              [data.userId]: { x: data.x, y: data.y }
+            }));
+          } else if (data.type === 'USER_LEFT') {
+            setPeers(prev => {
+              const next = { ...prev };
+              delete next[data.userId];
+              return next;
+            });
+          }
+        } catch {
+          // ignore malformed frames
+        }
+      };
+
+      ws.onerror = () => {};
+
+      ws.onclose = () => {
+        clearHeartbeat();
+        if (unmountedRef.current) return;
+
+        const attempt = reconnectAttemptRef.current;
+        const delay = Math.min(
+          BASE_RECONNECT_DELAY_MS * 2 ** attempt + Math.random() * 500,
+          MAX_RECONNECT_DELAY_MS
+        );
+        reconnectAttemptRef.current = attempt + 1;
+
+        clearReconnectTimer();
+        reconnectTimerRef.current = setTimeout(() => {
+          connect();
+        }, delay);
+      };
+    }
 
     connect();
 
@@ -123,7 +115,7 @@ export default function MultiplayerCursor({ incidentId }: MultiplayerCursorProps
       clearReconnectTimer();
       wsRef.current?.close();
     };
-  }, [connect]);
+  }, [incidentId]);
 
   return (
     <>
