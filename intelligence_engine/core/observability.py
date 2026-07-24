@@ -1,5 +1,6 @@
 import functools
 import structlog
+import logging
 import time
 import asyncio
 

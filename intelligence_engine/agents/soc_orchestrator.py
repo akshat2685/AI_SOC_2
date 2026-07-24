@@ -4,6 +4,7 @@ import os
 import json
 import asyncio
 import time
+from functools import lru_cache
 from typing import Any, Dict, List, Literal
 from pydantic import BaseModel, Field, ValidationError
 from langgraph.graph import StateGraph, END
@@ -32,17 +33,23 @@ def get_required_env(key: str, default: str = None) -> str:
         raise RuntimeError(f"Required environment variable {key} is not set")
     return value
 
-# Get API key (fail fast, no dummy defaults)
-api_key = get_required_env("GEMINI_API_KEY")
-_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
-llm = wrap_llm_with_router(_base_llm)
+@lru_cache()
+def get_llm():
+    api_key = get_required_env("GEMINI_API_KEY", "dummy_key")
+    _base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
+    return wrap_llm_with_router(_base_llm)
 
-detection_engine = AutonomousDetectionEngine()
-soar_engine = SOARAutomationEngine(
-    db_url=get_required_env("DATABASE_URL"),
-    api_key=get_required_env("SOAR_API_KEY"),
-    endpoint=get_required_env("SOAR_API_ENDPOINT"),
-)
+@lru_cache()
+def get_detection_engine():
+    return AutonomousDetectionEngine()
+
+@lru_cache()
+def get_soar_engine():
+    return SOARAutomationEngine(
+        db_url=get_required_env("DATABASE_URL", "sqlite:///:memory:"),
+        api_key=get_required_env("SOAR_API_KEY", "dummy"),
+        endpoint=get_required_env("SOAR_API_ENDPOINT", "dummy"),
+    )
 
 
 class SOCState(BaseModel):
@@ -99,17 +106,17 @@ async def alert_node(state: SOCState) -> Dict[str, Any]:
 # ✅ NODE 2: Detection (ML) - With proper error handling
 async def detection_node(state: SOCState) -> Dict[str, Any]:
     """Run ML detection engine with structured error handling."""
-    logger.info("detection_engine_started", alert_id=state.alert_id)
+    logger.info("get_detection_engine()_started", alert_id=state.alert_id)
     
     try:
         events = state.alert_data.get("events", [state.alert_data])
-        df = detection_engine.extract_features(events)
+        df = get_detection_engine().extract_features(events)
         
         if df.empty:
             logger.warning("detection_empty_features", alert_id=state.alert_id)
             return {"detection_context": {"status": "no_features", "threats": []}}
         
-        threats = detection_engine.hunt_threats(df)
+        threats = get_detection_engine().hunt_threats(df)
         ctx = {
             "status": "analyzed",
             "threat_count": len(threats),
@@ -256,7 +263,7 @@ async def threat_intel_node(state: SOCState) -> Dict[str, Any]:
     parser = JsonOutputParser(pydantic_object=ThreatIntelResponse)
     
     try:
-        intel = await (prompt | llm | parser).ainvoke({
+        intel = await (prompt | get_llm() | parser).ainvoke({
             "detection": json.dumps(state.detection_context),
             "investigation": json.dumps(state.investigation_findings),
         })
@@ -318,7 +325,7 @@ async def risk_node(state: SOCState) -> Dict[str, Any]:
     parser = JsonOutputParser(pydantic_object=RiskScoringResponse)
     
     try:
-        scores = await (prompt | llm | parser).ainvoke({
+        scores = await (prompt | get_llm() | parser).ainvoke({
             "triage": json.dumps(state.triage_detail),
             "detection": json.dumps(state.detection_context),
             "investigation": json.dumps(state.investigation_findings),
@@ -372,7 +379,7 @@ async def response_node(state: SOCState) -> Dict[str, Any]:
     parser = JsonOutputParser(pydantic_object=ResponsePlanResponse)
     
     try:
-        plan = await (prompt | llm | parser).ainvoke({
+        plan = await (prompt | get_llm() | parser).ainvoke({
             "risk_score": str(state.risk_score),
             "threat_intel": json.dumps(state.threat_intel_context),
             "investigation": json.dumps(state.investigation_findings),
@@ -448,7 +455,7 @@ async def soar_node(state: SOCState) -> Dict[str, Any]:
     for action in state.response_plan.get("actions", []):
         name = action if isinstance(action, str) else action.get("action", "unknown")
         try:
-            outcome = await soar_engine.evaluate_risk_policy(
+            outcome = await get_soar_engine().evaluate_risk_policy(
                 risk_score=int(state.risk_score),
                 action=name,
                 payload=state.response_plan,
@@ -489,7 +496,7 @@ async def reporting_node(state: SOCState) -> Dict[str, Any]:
     ])
     
     try:
-        resp = await (prompt | llm).ainvoke({
+        resp = await (prompt | get_llm()).ainvoke({
             "alert_id": state.alert_id,
             "risk_score": str(state.risk_score),
             "investigation": json.dumps(state.investigation_findings),

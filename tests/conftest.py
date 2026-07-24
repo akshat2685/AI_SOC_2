@@ -5,6 +5,9 @@ import pytest
 import pytest_asyncio
 import asyncio
 from typing import AsyncGenerator
+from unittest.mock import MagicMock
+sys.modules['psycopg'] = MagicMock()
+sys.modules['psycopg.errors'] = MagicMock()
 
 # Insert root and backend paths into sys.path
 sys.path.insert(0, os.path.abspath("backend"))

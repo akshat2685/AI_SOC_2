@@ -1,4 +1,5 @@
 import asyncio
+import os
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from kafka_consumer import consume_events, dlq_consumer_task

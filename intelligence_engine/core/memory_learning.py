@@ -1,5 +1,6 @@
 import os
 import json
+import psycopg
 from typing import Dict, Any, List, Optional
 
 class MemoryLearningSystem:

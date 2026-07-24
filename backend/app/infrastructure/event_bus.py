@@ -4,7 +4,7 @@ import os
 import structlog
 from typing import Dict, Any, Callable, List
 
-from application.services import IEventBus
+from backend.app.application.services import IEventBus
 
 logger = structlog.get_logger(__name__)
 
