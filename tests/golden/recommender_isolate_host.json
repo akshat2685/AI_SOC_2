@@ -1,0 +1,7 @@
+{
+  "confidence": 0.97,
+  "degraded": false,
+  "historical_cases_used": 2,
+  "reasoning": "Selected based on 2 similar historical cases (top score=0.97).",
+  "recommended_playbook_id": "pb_isolate_host_01"
+}
