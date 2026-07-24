@@ -58,7 +58,7 @@ jobs:
       - name: Build and Load Docker Images
         run: |
           docker build -t shieldai/backend:ci -f Dockerfile.backend-prod .
-          docker build -t shieldai/frontend:ci -f frontend/Dockerfile .
+          docker build -t shieldai/frontend:ci ./frontend
           kind load docker-image shieldai/backend:ci --name shieldai-cluster
           kind load docker-image shieldai/frontend:ci --name shieldai-cluster
 
