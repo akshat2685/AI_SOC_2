@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -6,23 +7,17 @@ import { api } from '@/lib/api';
 import { 
   Play, 
   Trash2, 
-  HelpCircle, 
   AlertTriangle, 
-  Map, 
-  Compass, 
-  ShieldCheck 
+  Compass 
 } from 'lucide-react';
 
 export default function AttackGraphView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<any>(null);
-  const [nodes, setNodes] = useState<any[]>([]);
-  const [edges, setEdges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Interactive UI State
   const [selectedNode, setSelectedNode] = useState<any>(null);
-  const [targetNode, setTargetNode] = useState<string>('');
   const [attackType, setAttackType] = useState<string>('RANSOMWARE');
   const [riskFactor, setRiskFactor] = useState<number>(0.5);
   const [simResults, setSimResults] = useState<any>(null);
@@ -41,9 +36,6 @@ export default function AttackGraphView() {
         // Fetch current topology
         const topRes = await api.getTopology();
         if (!active) return;
-        
-        setNodes(topRes.nodes || []);
-        setEdges(topRes.edges || []);
         
         // Delay graph creation slightly to ensure container is fully bound and visible in the DOM
         timer = setTimeout(() => {

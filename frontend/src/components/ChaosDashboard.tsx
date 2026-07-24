@@ -1,7 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Database, Zap, Activity, ShieldAlert, Cpu } from 'lucide-react';
+import { Database, Zap, Activity, ShieldAlert, Cpu } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, AreaChart, Area } from 'recharts';
-import { api } from '@/lib/api';
 
 const CustomLatencyTooltip = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {

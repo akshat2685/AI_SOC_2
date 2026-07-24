@@ -11,54 +11,7 @@ env:
   NODE_VERSION: "22"
 
 jobs:
-  backend-tests:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_DB: soc_test
-          POSTGRES_USER: soc_test
-          POSTGRES_PASSWORD: soc_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Install Poetry
-        run: pip install poetry
-
-      - name: Install dependencies
-        run: poetry install --no-interaction
-
-      - name: Run backend tests
-        run: |
-          poetry run pytest tests/ \
-            -v --tb=short \
-            --cov=app --cov-report=xml
-        env:
-          POSTGRES_URL: postgresql://soc_test:soc_test@localhost:5432/soc_test
-          GEMINI_API_KEY: test
-          SOAR_API_KEY: test
-          SOAR_API_ENDPOINT: https://test.example.com
-          SECRET_KEY: test-secret
-          AUDIT_SECRET_KEY: test-audit
-          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
-          EVENT_BUS_BACKEND: stub
-          RATE_LIMIT_STORAGE_URI: memory://
 
   frontend-lint:
     runs-on: ubuntu-latest

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/store/useStore';
-import { api } from '@/lib/api';
+
 import { 
   MessageSquare, 
   Send, 
