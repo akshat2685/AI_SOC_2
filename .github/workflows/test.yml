@@ -65,4 +65,51 @@ jobs:
       - name: Run Smoke Test on Cluster
         run: |
           kubectl cluster-info
-          kubectl get nodes -o wide
+          
+          # Create a basic deployment for backend to verify it starts without crashing
+          cat <<EOF | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: backend-smoke-test
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: backend
+            template:
+              metadata:
+                labels:
+                  app: backend
+              spec:
+                containers:
+                - name: backend
+                  image: shieldai/backend:ci
+                  imagePullPolicy: Never
+                  env:
+                  - name: DATABASE_URL
+                    value: "sqlite+aiosqlite:///:memory:"
+                  - name: GEMINI_API_KEY
+                    value: "test"
+                  - name: SOAR_API_KEY
+                    value: "test"
+                  - name: EVENT_BUS_BACKEND
+                    value: "stub"
+                  ports:
+                  - containerPort: 8000
+          EOF
+          
+          # Wait for the backend pod to be ready
+          echo "Waiting for backend pod to be ready..."
+          kubectl wait --for=condition=ready pod -l app=backend --timeout=60s
+          
+          # Check logs if it fails
+          if [ $? -ne 0 ]; then
+            kubectl logs -l app=backend
+            exit 1
+          fi
+          
+          # Verify health endpoint
+          kubectl port-forward deploy/backend-smoke-test 8000:8000 &
+          sleep 5
+          curl -s http://localhost:8000/api/v1/health | grep '"status":"healthy"'
