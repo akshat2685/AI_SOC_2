@@ -11,10 +11,19 @@ sys.path.insert(0, os.path.abspath("backend"))
 sys.path.insert(0, os.path.abspath("."))
 
 # Set required environment variables for test execution
-os.environ["GEMINI_API_KEY"] = "test_gemini_api_key_for_unit_tests"
-os.environ["SOAR_API_KEY"] = "test_soar_api_key"
-os.environ["SOAR_API_ENDPOINT"] = "https://api.test.example.com/v1/containment"
-os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+os.environ.setdefault("GEMINI_API_KEY", "test_gemini_api_key_for_unit_tests")
+os.environ.setdefault("SOAR_API_KEY", "test_soar_api_key")
+os.environ.setdefault("SOAR_API_ENDPOINT", "https://api.test.example.com/v1/containment")
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ.setdefault("POSTGRES_URL", "postgresql+asyncpg://soc_test:soc_test@localhost:5432/soc_test")
+os.environ.setdefault("SECRET_KEY", "test_secret_key")
+os.environ.setdefault("AUDIT_SECRET_KEY", "test_audit_secret")
+os.environ.setdefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+os.environ.setdefault("EVENT_BUS_BACKEND", "stub")
+os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
+os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
+os.environ.setdefault("NEO4J_AUTH", "neo4j/password")
+os.environ.setdefault("QDRANT_URL", "http://localhost:6333")
 
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
