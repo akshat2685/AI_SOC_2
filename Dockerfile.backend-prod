@@ -7,8 +7,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements.memory.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements.memory.txt
-
+COPY backend/app/requirements.txt ./backend-requirements.txt
+COPY intelligence_engine/requirements.txt ./ie-requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt -r requirements.memory.txt -r backend-requirements.txt -r ie-requirements.txt
 FROM python:3.11-slim as runner
 
 WORKDIR /app
