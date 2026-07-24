@@ -1,0 +1,7 @@
+{
+  "confidence": 0.0,
+  "degraded": true,
+  "historical_cases_used": 0,
+  "reasoning": "Qdrant vector store is unavailable or has no indexed playbooks. Manual triage required.",
+  "recommended_playbook_id": null
+}
