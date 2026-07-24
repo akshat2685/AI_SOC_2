@@ -1,2 +1,19 @@
+# ShieldAI (EDYSOR) — Root requirements aggregator
+# ----------------------------------------------------
+# This project follows a per-service dependency model (microservices).
+# Each service owns its own requirements file:
+#
+#   backend/requirements.txt         — FastAPI backend
+#   intelligence_engine/requirements.txt — AI/SOAR engine
+#
+# For local all-in-one dev install, use:
+#   pip install -r backend/requirements.txt
+#   pip install -r intelligence_engine/requirements.txt
+#
+# DO NOT add service dependencies here — they will not be installed
+# by service Dockerfiles and will silently produce broken environments.
+# ----------------------------------------------------
+
+# Shared logging utilities used by both services
 python-json-logger==2.0.7
 structlog==24.1.0
