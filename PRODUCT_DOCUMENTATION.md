@@ -237,7 +237,7 @@ ShieldAI integrates with enterprise SaaS providers (e.g., Slack, Microsoft Teams
 - **SOC Main Dashboard**: Navigate to `http://localhost` (or server IP). View live threat radar, security alerts, and system health metrics.
 - **REST API Explorer**: Open `http://localhost:8000/docs` to interact with Swagger API documentation.
 - **AI Intelligence Layer API**: Open `http://localhost:8001/docs` to test AI Copilot queries directly.
-- **Grafana Monitoring**: Access `http://localhost:3000` (Default credentials: `admin` / `admin_in_production`).
+- **Grafana Monitoring**: Access `http://localhost:3000`. Credentials are sourced from the `GF_SECURITY_ADMIN_USER` and `GF_SECURITY_ADMIN_PASSWORD` environment variables, which must be set from Vault before deploying. Never use default or hardcoded credentials in production.
 - **Neo4j Attack Graph Explorer**: Access `http://localhost:7474` (Bolt connection: `bolt://localhost:7687`).
 
 ---
