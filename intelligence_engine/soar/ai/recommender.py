@@ -72,9 +72,9 @@ class PlaybookRecommender:
             embedding = await self._embed(text_query)
             from qdrant_client.models import SearchRequest
 
-            results = await self._qdrant.search(
+            results = await self._qdrant.query_points(
                 collection_name=self.collection_name,
-                query_vector=embedding,
+                query=embedding,
                 limit=5,
                 with_payload=True,
             )

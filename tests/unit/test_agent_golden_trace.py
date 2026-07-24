@@ -45,7 +45,7 @@ class _FakeQdrant:
     def __init__(self, hits: List[_FakeHit]):
         self._hits = hits
 
-    async def search(self, *args, **kwargs) -> List[_FakeHit]:
+    async def query_points(self, *args, **kwargs) -> List[_FakeHit]:
         return self._hits
 
 

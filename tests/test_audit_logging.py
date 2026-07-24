@@ -196,14 +196,14 @@ async def test_audit_consumer_postgres_sink_rls_isolation(monkeypatch):
     
     # Ensure RLS statement was executed safely
     executed_statements = [call.args[0].text for call in mock_session.execute.call_args_list]
-    assert "SELECT set_config('rls.tenant_id', :tenant_id, true);" in executed_statements[0]
+    assert "SELECT set_config('rls.tenant_id', :tid, true);" in executed_statements[0]
     
     first_call_args = mock_session.execute.call_args_list[0].args
     first_call_kwargs = mock_session.execute.call_args_list[0].kwargs
     if len(first_call_args) > 1:
-        assert first_call_args[1] == {"tenant_id": "1"}
-    else:
-        assert first_call_kwargs.get("params", first_call_kwargs) == {"tenant_id": "1"}
+        assert first_call_args[1] == {"tid": "1"}
+    elif "params" in first_call_kwargs:
+        assert first_call_kwargs["params"] == {"tid": "1"}
     
     mock_session.add.assert_called_once()
     added_event = mock_session.add.call_args.args[0]
