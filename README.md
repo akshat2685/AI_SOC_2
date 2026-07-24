@@ -168,9 +168,12 @@ ShieldAI includes a built-in AST knowledge graph generated via **Graphify**:
 - **3,652 Nodes** · **5,307 Edges** · **410 Communities**
 
 ### Access Visualizers
-- 🌐 [graph.html](file:///c:/Users/ijain/AI_SOC_2/graphify-out/graph.html) — Interactive D3 Web Visualizer
-- 🌲 [GRAPH_TREE.html](file:///c:/Users/ijain/AI_SOC_2/graphify-out/GRAPH_TREE.html) — Collapsible Tree Explorer
-- 📄 [GRAPH_REPORT.md](file:///c:/Users/ijain/AI_SOC_2/graphify-out/GRAPH_REPORT.md) — Architecture & Community Hubs Report
+
+Open the files below from the root of this repository after cloning:
+
+- 🌐 [graph.html](./graphify-out/graph.html) — Interactive D3 Web Visualizer
+- 🌲 [GRAPH_TREE.html](./graphify-out/GRAPH_TREE.html) — Collapsible Tree Explorer
+- 📄 [GRAPH_REPORT.md](./graphify-out/GRAPH_REPORT.md) — Architecture & Community Hubs Report
 
 ---
 
