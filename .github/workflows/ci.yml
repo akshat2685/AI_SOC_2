@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  PYTHON_VERSION: "3.14"
+  PYTHON_VERSION: "3.11"
   NODE_VERSION: "22"
 
 jobs:
@@ -48,7 +48,7 @@ jobs:
         run: |
           poetry run pytest tests/ \
             -v --tb=short \
-            -k "not digital_twin_e2e and not memory_learning"
+            --cov=app --cov-report=xml
         env:
           POSTGRES_URL: postgresql://soc_test:soc_test@localhost:5432/soc_test
           GEMINI_API_KEY: test
@@ -57,6 +57,8 @@ jobs:
           SECRET_KEY: test-secret
           AUDIT_SECRET_KEY: test-audit
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          EVENT_BUS_BACKEND: stub
+          RATE_LIMIT_STORAGE_URI: memory://
 
   frontend-lint:
     runs-on: ubuntu-latest
