@@ -20,10 +20,11 @@ from app.core.config import settings
 logger = structlog.get_logger(__name__)
 router = APIRouter()
 
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../intelligence_engine")))
-from core.crypto import envelope_crypto
+try:
+    from intelligence_engine.core.crypto import envelope_crypto
+except ImportError:
+    from core.crypto import envelope_crypto
+
 
 
 # PREFERENCES

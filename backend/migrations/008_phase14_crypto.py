@@ -12,7 +12,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../i
 from app.core.config import settings
 from app.infrastructure.database import AsyncSessionLocal, engine
 from app.domain.models import TenantKeyStore, WebhookEndpoint, Tenant
-from core.crypto import envelope_crypto
+try:
+    from intelligence_engine.core.crypto import envelope_crypto
+except ImportError:
+    from core.crypto import envelope_crypto
+
 from sqlalchemy import select, text
 
 logger = logging.getLogger(__name__)
