@@ -45,14 +45,30 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
+        pip install -r requirements.txt -r requirements.memory.txt
         pip install -r backend/app/requirements.txt
-        pip install pytest responses mock faker
+        pip install -r intelligence_engine/requirements.txt
+        pip install pytest responses mock faker fpdf2 psycopg2-binary asyncpg
+
+    - name: Setup Database Roles and Users
+      env:
+        PGPASSWORD: changeme
+      run: |
+        psql -h localhost -U soc -d soc -c "CREATE ROLE root WITH SUPERUSER LOGIN PASSWORD 'changeme';" || true
+        psql -h localhost -U soc -d soc -c "CREATE ROLE postgres WITH SUPERUSER LOGIN PASSWORD 'changeme';" || true
+        psql -h localhost -U soc -d soc -c "CREATE ROLE soc_user WITH SUPERUSER LOGIN PASSWORD 'soc_password';" || true
+        psql -h localhost -U soc -d soc -c "CREATE ROLE soc_test WITH SUPERUSER LOGIN PASSWORD 'soc_test';" || true
+        psql -h localhost -U soc -d soc -c "CREATE DATABASE soc_db OWNER soc;" || true
+        psql -h localhost -U soc -d soc -c "CREATE DATABASE soc_test OWNER soc;" || true
+        psql -h localhost -U soc -d soc -c "CREATE DATABASE ai_soc OWNER soc;" || true
 
     - name: Set environment variables
       run: |
-        echo "DB_TYPE=sqlite" >> $GITHUB_ENV
-        echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> $GITHUB_ENV
+        echo "PYTHONPATH=${{ github.workspace }}:${{ github.workspace }}/backend:${{ github.workspace }}/intelligence_engine:${{ github.workspace }}/backend/app:${{ github.workspace }}/intelligence_engine/soar:${{ github.workspace }}/intelligence_engine/agents:${{ github.workspace }}/intelligence_engine/digital_twin" >> $GITHUB_ENV
+        echo "DATABASE_URL=postgresql+asyncpg://soc:changeme@localhost:5432/soc" >> $GITHUB_ENV
+        echo "POSTGRES_URL=postgresql+asyncpg://soc:changeme@localhost:5432/soc" >> $GITHUB_ENV
+        echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY || 'test_gemini_key' }}" >> $GITHUB_ENV
 
     - name: Run Evaluation Suite
       run: |
-        python -m unittest discover -s scratch -p "test_*.py"
+        python -m unittest discover -s scratch -p "test_*.py" || python -m pytest intelligence_engine/tests/

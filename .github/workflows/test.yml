@@ -28,10 +28,11 @@ jobs:
           pip install -r requirements.txt -r requirements.memory.txt
           pip install -r backend/app/requirements.txt
           pip install -r intelligence_engine/requirements.txt
-          pip install boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic
+          pip install boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic fpdf2 psycopg2-binary asyncpg
 
       - name: Run Pytest Suite
         env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/backend:${{ github.workspace }}/intelligence_engine:${{ github.workspace }}/backend/app"
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY || 'test_gemini_key' }}
           SOAR_API_KEY: ${{ secrets.SOAR_API_KEY || 'test_soar_key' }}
           SOAR_API_ENDPOINT: "https://api.test.example.com/v1/containment"
