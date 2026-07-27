@@ -45,10 +45,10 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r requirements.memory.txt || true
-        pip install -r backend/app/requirements.txt || true
-        pip install -r intelligence_engine/requirements.txt || true
-        pip install pytest responses mock faker fpdf2 psycopg2-binary asyncpg prometheus-client PyJWT redis
+        pip install -r requirements.txt -r requirements.memory.txt
+        pip install -r backend/app/requirements.txt
+        pip install -r intelligence_engine/requirements.txt
+        pip install boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic fpdf2 psycopg2-binary asyncpg prometheus-client PyJWT redis responses mock faker
 
     - name: Wait for Postgres to be ready
       env:

@@ -4,7 +4,7 @@ import logging
 import time
 import asyncio
 
-from prometheus_client import Gauge, Histogram, Counter
+from prometheus_client import Gauge, Histogram, Counter, REGISTRY
 
 try:
     from opentelemetry import trace as otel_trace
@@ -14,11 +14,21 @@ except ImportError:
 
 logger = structlog.get_logger(__name__)
 
+def _get_or_create_metric(metric_cls, name, documentation, *args, **kwargs):
+    if name in REGISTRY._names_to_collectors:
+        return REGISTRY._names_to_collectors[name]
+    try:
+        return metric_cls(name, documentation, *args, **kwargs)
+    except Exception as e:
+        if "Duplicated" in str(e) or "Duplicate" in str(e) or name in REGISTRY._names_to_collectors:
+            return REGISTRY._names_to_collectors.get(name) or REGISTRY._names_to_collectors.get(name + "_total")
+        raise
+
 # Prometheus Metrics
-KAFKA_LAG_GAUGE = Gauge("kafka_consumer_lag", "Current lag of the Kafka consumer", ["partition"])
-PROCESSING_LATENCY = Histogram("event_processing_latency_seconds", "Latency of processing events", ["operation"])
-CLICKHOUSE_LATENCY = Histogram("clickhouse_insert_latency_seconds", "Latency of ClickHouse inserts")
-DLQ_EVENTS_COUNTER = Counter("dlq_events_total", "Total events sent to DLQ", ["reason"])
+KAFKA_LAG_GAUGE = _get_or_create_metric(Gauge, "kafka_consumer_lag", "Current lag of the Kafka consumer", ["partition"])
+PROCESSING_LATENCY = _get_or_create_metric(Histogram, "event_processing_latency_seconds", "Latency of processing events", ["operation"])
+CLICKHOUSE_LATENCY = _get_or_create_metric(Histogram, "clickhouse_insert_latency_seconds", "Latency of ClickHouse inserts")
+DLQ_EVENTS_COUNTER = _get_or_create_metric(Counter, "dlq_events_total", "Total events sent to DLQ", ["reason"])
 
 def trace(operation_name: str):
     """Decorator for Jaeger tracing (via OpenTelemetry) and Prometheus metrics."""
