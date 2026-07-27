@@ -15,13 +15,24 @@ except ImportError:
 logger = structlog.get_logger(__name__)
 
 def _get_or_create_metric(metric_cls, name, documentation, *args, **kwargs):
-    if name in REGISTRY._names_to_collectors:
+    if hasattr(REGISTRY, "_collector_to_names"):
+        for collector in list(REGISTRY._collector_to_names.keys()):
+            if getattr(collector, "_name", None) == name:
+                return collector
+    elif name in REGISTRY._names_to_collectors:
         return REGISTRY._names_to_collectors[name]
+
     try:
         return metric_cls(name, documentation, *args, **kwargs)
     except Exception as e:
-        if "Duplicated" in str(e) or "Duplicate" in str(e) or name in REGISTRY._names_to_collectors:
-            return REGISTRY._names_to_collectors.get(name) or REGISTRY._names_to_collectors.get(name + "_total")
+        if "Duplicated" in str(e) or "Duplicate" in str(e) or "already exists" in str(e):
+            if hasattr(REGISTRY, "_collector_to_names"):
+                for collector in list(REGISTRY._collector_to_names.keys()):
+                    if getattr(collector, "_name", None) == name:
+                        return collector
+            collector = REGISTRY._names_to_collectors.get(name) or REGISTRY._names_to_collectors.get(name + "_total")
+            if collector:
+                return collector
         raise
 
 # Prometheus Metrics

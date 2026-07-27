@@ -40,11 +40,11 @@ jobs:
           EVENT_BUS_BACKEND: stub
           RATE_LIMIT_STORAGE_URI: memory://
         run: |
-          python -m pytest tests/ --cov=backend/app --cov=intelligence_engine --cov-report=xml
-          python -m pytest intelligence_engine/tests/ --cov=intelligence_engine --cov-append --cov-report=xml
+          python -m pytest --import-mode=importlib tests/ --cov=backend/app --cov=intelligence_engine --cov-report=xml
+          python -m pytest --import-mode=importlib intelligence_engine/tests/ --cov=intelligence_engine --cov-append --cov-report=xml
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           file: ./coverage.xml
 
@@ -98,6 +98,8 @@ jobs:
                     value: "test"
                   - name: EVENT_BUS_BACKEND
                     value: "stub"
+                  - name: RATE_LIMIT_STORAGE_URI
+                    value: "memory://"
                   ports:
                   - containerPort: 8000
           ---
