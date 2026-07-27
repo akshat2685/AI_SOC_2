@@ -4,9 +4,15 @@ import structlog
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
-from core.repository import SessionLocal
-from core.webhook_delivery import deliver_webhook
-from core.config import get_settings
+try:
+    from intelligence_engine.core.repository import SessionLocal
+    from intelligence_engine.core.webhook_delivery import deliver_webhook
+    from intelligence_engine.core.config import get_settings
+except ImportError:
+    from core.repository import SessionLocal
+    from core.webhook_delivery import deliver_webhook
+    from core.config import get_settings
+
 import redis.asyncio as redis
 
 # Optional sinks simulation

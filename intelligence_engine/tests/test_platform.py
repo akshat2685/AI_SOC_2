@@ -2,7 +2,11 @@ import pytest
 import sys
 from unittest.mock import patch, MagicMock, call
 import subprocess
-from core.platform import platform_utils, PlatformAbstractor
+try:
+    from intelligence_engine.core.platform import platform_utils, PlatformAbstractor
+except ImportError:
+    from core.platform import platform_utils, PlatformAbstractor
+
 
 def test_normalize_path():
     path = "some/test/path"

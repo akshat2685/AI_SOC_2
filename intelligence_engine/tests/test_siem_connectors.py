@@ -1,11 +1,19 @@
 import pytest
 import datetime
 from unittest.mock import patch, AsyncMock, MagicMock
-from connectors.siem.elastic import ElasticConnector
-from connectors.siem.graylog import GraylogConnector
-from connectors.siem.security_onion import SecurityOnionConnector
-from connectors.siem.splunk import SplunkConnector
-from connectors.siem.sentinel import SentinelConnector
+try:
+    from intelligence_engine.connectors.siem.elastic import ElasticConnector
+    from intelligence_engine.connectors.siem.graylog import GraylogConnector
+    from intelligence_engine.connectors.siem.security_onion import SecurityOnionConnector
+    from intelligence_engine.connectors.siem.splunk import SplunkConnector
+    from intelligence_engine.connectors.siem.sentinel import SentinelConnector
+except ImportError:
+    from connectors.siem.elastic import ElasticConnector
+    from connectors.siem.graylog import GraylogConnector
+    from connectors.siem.security_onion import SecurityOnionConnector
+    from connectors.siem.splunk import SplunkConnector
+    from connectors.siem.sentinel import SentinelConnector
+
 
 @pytest.fixture
 def dummy_time():

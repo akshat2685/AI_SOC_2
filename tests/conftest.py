@@ -9,9 +9,11 @@ from unittest.mock import MagicMock
 sys.modules['psycopg'] = MagicMock()
 sys.modules['psycopg.errors'] = MagicMock()
 
-# Insert root and backend paths into sys.path
+# Insert root, backend, and intelligence_engine paths into sys.path
+sys.path.insert(0, os.path.abspath("intelligence_engine"))
 sys.path.insert(0, os.path.abspath("backend"))
 sys.path.insert(0, os.path.abspath("."))
+
 
 # Set required environment variables for test execution
 os.environ.setdefault("GEMINI_API_KEY", "test_gemini_api_key_for_unit_tests")

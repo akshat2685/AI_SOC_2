@@ -3,7 +3,11 @@ import pytest
 import time
 import sys
 from unittest.mock import AsyncMock, patch, MagicMock
-from core.mesh import LocalMeshClient, AgentProfile, NatsMeshClient
+try:
+    from intelligence_engine.core.mesh import LocalMeshClient, AgentProfile, NatsMeshClient
+except ImportError:
+    from core.mesh import LocalMeshClient, AgentProfile, NatsMeshClient
+
 
 @pytest.fixture
 def mock_nats_module():

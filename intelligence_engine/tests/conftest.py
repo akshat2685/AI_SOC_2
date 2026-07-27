@@ -2,8 +2,14 @@ import sys
 import os
 from unittest.mock import MagicMock
 
-# Add project root to sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+# Add intelligence_engine and project root to sys.path
+engine_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+root_dir = os.path.abspath(os.path.join(engine_dir, '..'))
+if engine_dir not in sys.path:
+    sys.path.insert(0, engine_dir)
+if root_dir not in sys.path:
+    sys.path.insert(0, root_dir)
+
 
 # Set dummy API keys to avoid Pydantic validation errors in Langchain
 os.environ["GEMINI_API_KEY"] = "test-dummy-key"
