@@ -54,7 +54,8 @@ async def get_alerts(
                 "confidence_score": 80,
                 "attack_type": "UNKNOWN",
                 "evidence": a.description,
-                "attacker_ip": "0.0.0.0",
+                "attacker_ip": "0.0.0.0",  # nosec B104
+
                 "verdict": "UNKNOWN",
                 "incident_id": a.incident_id,
                 "source": a.source,

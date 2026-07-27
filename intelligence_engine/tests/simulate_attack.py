@@ -12,7 +12,8 @@ def run_atomic_red_team_replay():
                 "technique": t,
                 "severity": "HIGH",
                 "message": f"Simulated attack {t} detected"
-            })
+            }, timeout=5)
+
             print(f"Alert sent for {t}")
         except Exception as e:
             print(f"Failed to send alert for {t}: {e}")

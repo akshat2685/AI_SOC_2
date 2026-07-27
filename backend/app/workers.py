@@ -29,7 +29,8 @@ class SecurityAlertWorker(BaseWorker):
             "id": event.get("event_id", "unknown"),
             "severity": event.get("level", "low"),
             "description": event.get("msg", "No description"),
-            "source_ip": event.get("src_ip", "0.0.0.0")
+            "source_ip": event.get("src_ip", "0.0.0.0")  # nosec B104
+
         }
         success = self.alert_service.process_alert(alert_payload)
         if not success:

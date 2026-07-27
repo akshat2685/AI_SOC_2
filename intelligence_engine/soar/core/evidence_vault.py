@@ -98,9 +98,11 @@ class EvidenceVault:
 
     def _store_local(self, object_key: str, data: bytes) -> str:
         import pathlib
+        import tempfile
 
-        base = pathlib.Path("/tmp/evidence_vault")
+        base = pathlib.Path(tempfile.gettempdir()) / "evidence_vault"
         path = base / object_key
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
         return f"file://{path}"
+
