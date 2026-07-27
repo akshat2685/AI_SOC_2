@@ -21,4 +21,6 @@ PyJWT>=2.8.0
 redis>=5.0.0
 slowapi>=0.1.0
 psutil>=5.9.0
+greenlet>=3.0.0
+
 

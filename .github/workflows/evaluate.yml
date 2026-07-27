@@ -48,7 +48,8 @@ jobs:
         pip install -r requirements.txt -r requirements.memory.txt
         pip install -r backend/app/requirements.txt
         pip install -r intelligence_engine/requirements.txt
-        pip install boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic fpdf2 psycopg2-binary asyncpg prometheus-client PyJWT redis responses mock faker psutil opentelemetry-api opentelemetry-sdk
+        pip install boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic fpdf2 psycopg2-binary asyncpg prometheus-client PyJWT redis responses mock faker psutil opentelemetry-api opentelemetry-sdk greenlet
+
 
 
 
