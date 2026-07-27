@@ -48,7 +48,8 @@ jobs:
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
-          file: ./coverage.xml
+          files: ./coverage.xml
+
 
   cloud-tests:
     runs-on: ubuntu-latest
