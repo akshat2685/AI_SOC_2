@@ -14,8 +14,11 @@ import sys
 import time
 import unittest
 
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend"))
+# Add backend and backend/app to path
+backend_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "backend")
+app_dir = os.path.join(backend_dir, "app")
+sys.path.insert(0, app_dir)
+sys.path.insert(0, backend_dir)
 
 
 class TestRBAC(unittest.TestCase):
