@@ -33,7 +33,8 @@ async def test_async_trace_decorator():
         mock_labels.return_value.observe.assert_called_once()
 
 def test_setup_opentelemetry():
-    with patch('intelligence_engine.core.observability.otel_trace') as mock_otel_trace, \
+    with patch('intelligence_engine.core.observability.Resource') as mock_resource, \
+         patch('intelligence_engine.core.observability.otel_trace') as mock_otel_trace, \
          patch('intelligence_engine.core.observability.TracerProvider') as mock_provider, \
          patch('intelligence_engine.core.observability.BatchSpanProcessor') as mock_bsp, \
          patch('intelligence_engine.core.observability.ConsoleSpanExporter') as mock_cse, \
@@ -61,17 +62,18 @@ def test_custom_json_formatter():
     log_record = {}
     record = logging.LogRecord("name", logging.INFO, "pathname", 1, "msg", (), None)
     
-    with patch('intelligence_engine.core.observability.otel_trace.get_current_span') as mock_get_span:
-        mock_span = MagicMock()
-        mock_span.is_recording.return_value = True
-        mock_span.get_span_context.return_value.trace_id = 12345
-        mock_span.get_span_context.return_value.span_id = 67890
-        mock_get_span.return_value = mock_span
-        
+    mock_otel = MagicMock()
+    mock_span = MagicMock()
+    mock_span.is_recording.return_value = True
+    mock_span.get_span_context.return_value.trace_id = 12345
+    mock_span.get_span_context.return_value.span_id = 67890
+    mock_otel.get_current_span.return_value = mock_span
+    
+    with patch('intelligence_engine.core.observability.otel_trace', mock_otel):
         formatter.add_fields(log_record, record, {})
-        
         assert log_record['trace_id'] == format(12345, '032x')
         assert log_record['span_id'] == format(67890, '016x')
+
 
 def test_trace_ai_action_sync():
     with patch('intelligence_engine.core.observability.tracer') as mock_tracer:
