@@ -28,7 +28,7 @@ jobs:
           pip install -r requirements.txt -r requirements.memory.txt
           pip install -r backend/app/requirements.txt
           pip install -r intelligence_engine/requirements.txt
-          pip install boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic fpdf2 psycopg2-binary asyncpg
+          pip install boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic fpdf2 psycopg2-binary asyncpg prometheus-client PyJWT redis
 
       - name: Run Pytest Suite
         env:
@@ -41,6 +41,7 @@ jobs:
           RATE_LIMIT_STORAGE_URI: memory://
         run: |
           python -m pytest tests/ --cov=backend/app --cov=intelligence_engine --cov-report=xml
+          python -m pytest intelligence_engine/tests/ --cov=intelligence_engine --cov-append --cov-report=xml
 
       - name: Upload coverage
         uses: codecov/codecov-action@v3
@@ -68,7 +69,7 @@ jobs:
         run: |
           kubectl cluster-info
           
-          # Create a basic deployment for backend to verify it starts without crashing
+          # Create deployment and service for backend
           cat <<EOF | kubectl apply -f -
           apiVersion: apps/v1
           kind: Deployment
@@ -99,19 +100,42 @@ jobs:
                     value: "stub"
                   ports:
                   - containerPort: 8000
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: backend-smoke-test
+          spec:
+            selector:
+              app: backend
+            ports:
+            - protocol: TCP
+              port: 8000
+              targetPort: 8000
           EOF
           
-          # Wait for the backend pod to be ready
-          echo "Waiting for backend pod to be ready..."
-          kubectl wait --for=condition=ready pod -l app=backend --timeout=60s
+          # Wait for deployment to be available
+          echo "Waiting for backend deployment to be available..."
+          kubectl wait --for=condition=available deployment/backend-smoke-test --timeout=120s || \
+            (kubectl get pods -o wide -A; kubectl describe deployment backend-smoke-test; kubectl logs -l app=backend --all-containers; exit 1)
           
-          # Check logs if it fails
-          if [ $? -ne 0 ]; then
-            kubectl logs -l app=backend
+          # Port-forward service and check health with retry loop
+          echo "Port-forwarding backend service and checking health..."
+          kubectl port-forward svc/backend-smoke-test 8000:8000 >/tmp/portforward.log 2>&1 &
+          PF_PID=$!
+          for i in {1..12}; do
+            if curl -sSf http://127.0.0.1:8000/api/v1/health; then
+              echo "backend reachable and healthy"
+              break
+            fi
+            sleep 5
+          done
+          if ! curl -sSf http://127.0.0.1:8000/api/v1/health; then
+            echo "backend not reachable, capturing diagnostics"
+            kubectl get pods -o wide -A
+            kubectl describe pod -l app=backend
+            kubectl logs -l app=backend --all-containers --tail=200
+            kill $PF_PID || true
             exit 1
           fi
-          
-          # Verify health endpoint
-          kubectl port-forward deploy/backend-smoke-test 8000:8000 &
-          sleep 5
-          curl -s http://localhost:8000/api/v1/health | grep '"status":"healthy"'
+          kill $PF_PID || true

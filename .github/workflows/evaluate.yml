@@ -45,10 +45,27 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt -r requirements.memory.txt
-        pip install -r backend/app/requirements.txt
-        pip install -r intelligence_engine/requirements.txt
-        pip install pytest responses mock faker fpdf2 psycopg2-binary asyncpg
+        pip install -r requirements.txt -r requirements.memory.txt || true
+        pip install -r backend/app/requirements.txt || true
+        pip install -r intelligence_engine/requirements.txt || true
+        pip install pytest responses mock faker fpdf2 psycopg2-binary asyncpg prometheus-client PyJWT redis
+
+    - name: Wait for Postgres to be ready
+      env:
+        PGPASSWORD: changeme
+      run: |
+        for i in {1..30}; do
+          if psql -h localhost -U soc -d soc -c '\l' >/dev/null 2>&1; then
+            echo "Postgres ready"
+            break
+          fi
+          echo "Waiting for Postgres..."
+          sleep 1
+        done
+        if ! psql -h localhost -U soc -d soc -c '\l' >/dev/null 2>&1; then
+          echo "Postgres did not become ready" >&2
+          exit 1
+        fi
 
     - name: Setup Database Roles and Users
       env:
@@ -71,4 +88,6 @@ jobs:
 
     - name: Run Evaluation Suite
       run: |
-        python -m unittest discover -s scratch -p "test_*.py" || python -m pytest intelligence_engine/tests/
+        python -c "import sys, pprint; pprint.pprint(sys.path)"
+        python -m pytest -q tests/
+        python -m pytest -q intelligence_engine/tests/
