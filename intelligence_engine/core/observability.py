@@ -92,16 +92,27 @@ def trace(operation_name: str):
 import json
 import psutil
 from pythonjsonlogger import jsonlogger
-from opentelemetry import trace as otel_trace, metrics
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
-from opentelemetry.sdk.resources import Resource
+try:
+    from opentelemetry import trace as otel_trace, metrics
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+    from opentelemetry.sdk.resources import Resource
+except ImportError:
+    otel_trace = None
+    metrics = None
+    TracerProvider = None
+    BatchSpanProcessor = None
+    ConsoleSpanExporter = None
+    Resource = None
 import os
 
 def setup_opentelemetry():
+    if not otel_trace or not TracerProvider:
+        return
     resource = Resource.create({"service.name": "edysor-x-intelligence-engine"})
     otel_trace.set_tracer_provider(TracerProvider(resource=resource))
     tracer_provider = otel_trace.get_tracer_provider()
+
     
     if os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT"):
         try:

@@ -5,8 +5,13 @@ import hashlib
 import structlog
 from datetime import datetime
 import httpx
-from core.crypto import envelope_crypto
-from core.repository import SessionLocal
+try:
+    from intelligence_engine.core.crypto import envelope_crypto
+    from intelligence_engine.core.repository import SessionLocal
+except ImportError:
+    from core.crypto import envelope_crypto
+    from core.repository import SessionLocal
+
 
 logger = structlog.get_logger(__name__)
 
