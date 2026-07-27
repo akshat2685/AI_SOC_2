@@ -95,14 +95,25 @@ jobs:
                   env:
                   - name: DATABASE_URL
                     value: "sqlite+aiosqlite:///:memory:"
+                  - name: POSTGRES_URL
+                    value: "sqlite+aiosqlite:///:memory:"
                   - name: GEMINI_API_KEY
                     value: "test"
                   - name: SOAR_API_KEY
                     value: "test"
+                  - name: SOAR_API_ENDPOINT
+                    value: "https://api.test.example.com/v1/containment"
+                  - name: SECRET_KEY
+                    value: "test_secret_key_for_smoke_test_32bytes!"
+                  - name: AUDIT_SECRET_KEY
+                    value: "test_audit_secret_key_smoke_test!"
+                  - name: KAFKA_BOOTSTRAP_SERVERS
+                    value: "localhost:9092"
                   - name: EVENT_BUS_BACKEND
                     value: "stub"
                   - name: RATE_LIMIT_STORAGE_URI
                     value: "memory://"
+
                   ports:
                   - containerPort: 8000
           ---
