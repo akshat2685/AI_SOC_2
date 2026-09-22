@@ -1,223 +1,119 @@
-# 🛡️ ShieldAI (EDYSOR) Autonomous AI SOC 2 Platform
-### Enterprise-Grade, Autonomous Threat Detection, Attack Path Reasoning & SOAR Orchestration
+# ShieldAI (EDYSOR) — Autonomous AI SOC Platform
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=for-the-badge&logo=github)](https://github.com/akshat2685/AI_SOC_2)
-[![Docker Compose](https://img.shields.io/badge/docker--compose-v2.20+-blue.svg?style=for-the-badge&logo=docker)](https://www.docker.com/)
-[![Kubernetes](https://img.shields.io/badge/kubernetes-v1.28+-326CE5.svg?style=for-the-badge&logo=kubernetes)](https://kubernetes.io/)
-[![Python](https://img.shields.io/badge/python-3.11+-3776AB.svg?style=for-the-badge&logo=python)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg?style=for-the-badge&logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Gemini 1.5 Pro](https://img.shields.io/badge/AI--Engine-Gemini--1.5--Pro-4285F4.svg?style=for-the-badge&logo=google)](https://ai.google.dev/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=for-the-badge)](LICENSE)
+> **Project status: early-stage scaffold — not production ready.**
+> This README describes what the code *actually does* as of 2026-09-22 (rewritten after a full line-by-line audit of all 353 files). Anything aspirational is labeled as such. The backend **does not boot** as committed — see [Known blockers](#known-blockers).
 
----
+## What this is
 
-## 📌 Table of Contents
-- [Executive Overview](#-executive-overview)
-- [System Architecture](#-system-architecture)
-- [Core Feature Matrix](#-core-feature-matrix)
-- [Technology Stack](#-technology-stack)
-- [Quickstart (Docker Compose)](#-quickstart-docker-compose)
-- [Enterprise Kubernetes Deployment](#-enterprise-kubernetes-deployment)
-- [Interactive Knowledge Graph (Graphify)](#-interactive-knowledge-graph-graphify)
-- [API Reference & Microservices](#-api-reference--microservices)
-- [Testing & Validation Suite](#-testing--validation-suite)
-- [Security & Compliance](#-security--compliance)
-- [Contributing & License](#-contributing--license)
+An early-stage **FastAPI + Next.js** security-operations dashboard scaffold:
 
----
+- Multi-tenant Postgres data model (tenants, users, assets, alerts, incidents, API keys, audit events, compliance)
+- JWT + API-key authentication with RBAC and rate limiting
+- Alert / incident / notification / compliance REST APIs backed by Postgres
+- A Next.js dashboard UI that fetches from `/api/v1`
 
-## 🚀 Executive Overview
+**Not yet implemented:** the agent swarm, threat-intel ingestion, SOAR playbook execution, honeypot integration, and multi-datastore analytics. Schema DDL for some of these exists; working code does not.
 
-**ShieldAI (EDYSOR)** is a production-grade, AI-native **Security Operations Center (SOC)** platform engineered to replace manual tier-1/tier-2 analyst triage with autonomous multi-agent reasoning. 
+## What works today
 
-Traditional SIEMs generate thousands of noisy alerts daily, creating severe analyst fatigue. ShieldAI uses an asynchronous **Apache Kafka** event stream, a **ClickHouse** columnar data lake, **Neo4j** attack path graphs, **Qdrant** vector search, and **Gemini Multi-Agent Swarms** to ingest, cluster, reason about, and remediate security incidents in real time.
+| Area | Reality |
+|---|---|
+| Auth | `POST /login` (bcrypt + JWT), `POST /register`, full API-key lifecycle (create / list / rotate / revoke) with SHA256-hashed storage and scopes |
+| Middleware | Request tracing, dual auth (JWT bearer + `X-API-Key`), audit logging of mutating requests, per-route rate limiting (slowapi) |
+| Alerts | Real DB-backed list/get/create; responses overlay hardcoded demo fields (severity `MEDIUM`, confidence `80%`) |
+| Incidents | Real DB-backed list/get; verdict/risk/graph endpoints return hardcoded values (no ML model exists) |
+| Notifications | Preference CRUD + webhook endpoints with HMAC-signed test delivery |
+| Compliance | Posture-score computation from DB tables |
+| Frontend | Next.js app; Dashboard, Incidents, Attack Graph, Executive views genuinely call `/api/v1` (several other views render mock data) |
+| DB setup | Alembic migrations, `init_db.py` / `seed_db.py` standalone scripts |
+| Infra | `docker-compose.yml` composes 16 services (Postgres, Redis, Kafka, ClickHouse, Neo4j, Qdrant, Jaeger, Prometheus, Grafana, Vault, Cowrie, Dionaea, frontend, backend, worker, ai-layer) — **containers only; most are not wired to the app** |
 
-### Key Performance Metrics
-- ⚡ **Ingestion Latency**: < 50ms real-time event streaming via Kafka
-- 🎯 **MTTD (Mean Time to Detect)**: Reduced from hours to **sub-second** pattern matching
-- 🤖 **Automated Triage Rate**: **94.2%** false positive suppression without human intervention
-- 🛡️ **Blast Radius Calculation**: Real-time Neo4j attack path traversal
+## What is stubbed, fake, or decorative
 
----
+- **22 stub routes** mounted with **no authentication** (`api/v1/stub_routes.py`): `/chat` returns a fixed string ("I am the AI Copilot…"), `/mitre/mappings` → `[]`, `/threat-intel/*` → `{"intel": "No data"}`, `/firewall/*` and `/threat-intel/sync` → fake `{"status": "success"}` doing nothing, `/payments/*` → fake billing
+- **Kafka / ClickHouse**: producer/consumer/audit-consumer code exists but is never instantiated; `aiokafka` / `clickhouse_connect` aren't even in `requirements.txt`
+- **Neo4j / Qdrant**: drivers are constructed at import; **zero queries** are executed anywhere
+- **Redis**: no client code; only a slowapi `storage_uri` default
+- **Honeypots**: Cowrie + Dionaea run as containers; no code reads their data
+- **`ai/` package** (`confidence_scoring.py`, `explainability.py`, `output_validation.py`): real, decent utility code — **imported by nothing**
+- **Agent prompts** (`TRIAGE_ANALYST_PROMPT.md`, `SUPERVISOR_PROMPT.md`, etc.): orphaned, loaded by no code
+- **Parallel auth/RBAC/session modules** (`app/auth/`): complete but unused; the live path is `core/security.py` + `api/deps.py`
+- **Tests**: 3 files, 6 tests; none cover agents, incidents, Kafka, or Neo4j
+- **CI workflows** reference requirements files, test paths, and Dockerfiles that don't exist — they cannot pass
 
-## 🏗️ System Architecture
+## True architecture (as coded)
 
 ```
-                  +-------------------------------------------------+
-                  |          ShieldAI Web Dashboard UI              |
-                  |          (Port 80 / Grafana Port 3000)          |
-                  +------------------------+------------------------+
-                                           |
-                                           v
-                  +------------------------+------------------------+
-                  |            FastAPI SOC Backend                  |
-                  |                (Port 8000)                      |
-                  +-------+----------------+----------------+-------+
-                          |                |                |
-          +---------------+                v                +---------------+
-          |                      +-------------------+                      |
-          v                      |  Kafka Event Bus  |                      v
-+-------------------+            |    (Port 9092)    |            +-------------------+
-|   PostgreSQL DB   |            +---------+---------+            |     Redis DB      |
-|    (Port 5432)    |                      |                      |    (Port 6379)    |
-+-------------------+                      v                      +-------------------+
-                                 +-------------------+
-                                 |    SIEM Worker    |
-                                 +---------+---------+
-                                           |
-     +-------------------------------------+-------------------------------------+
-     |                                     |                                     |
-     v                                     v                                     v
-+-------------------+             +-------------------+             +-------------------+
-|   ClickHouse DB   |             |   Qdrant Vector   |             |    Neo4j Graph    |
-|    (Port 8123)    |             |    (Port 6333)    |             |    (Port 7474)    |
-+-------------------+             +-------------------+             +-------------------+
-                                           ^
-                                           |
-                                  +--------+----------+
-                                  |     AI Layer      |
-                                  |    (Port 8001)    |
-                                  |  (Gemini / Lang)  |
-                                  +-------------------+
+Next.js frontend (:80) ──HTTP──▶ FastAPI backend (:8000)
+                                        │
+                        ┌───────────────┼────────────────┐
+                        ▼               ▼                ▼
+                 Postgres :5432   stub_routes      SQLAlchemy repos
+                 (only wired      (22 fake routes,  (real code, zero
+                  datastore)      no auth)          callers — routes
+                                                    hand-roll SQL)
 ```
 
----
+Infra services present in compose but **not consumed by the app**: Kafka, ClickHouse, Neo4j, Qdrant, Redis, Jaeger, Prometheus, Grafana, Vault, Cowrie, Dionaea. `siem-worker` and `ai-layer` cannot build (they `COPY intelligence_engine/`, which doesn't exist). Prometheus/Grafana/Vault configs referenced in compose are absent.
 
-## ⚡ Core Feature Matrix
+## Repository map
 
-| Feature Component | Technology | Enterprise Capability |
-| :--- | :--- | :--- |
-| **Telemetry Ingestion** | Apache Kafka (KRaft) | Asynchronous ingestion of network, host, and cloud audit logs at scale. |
-| **Columnar Data Lake** | ClickHouse OLAP | High-speed time-series log aggregations and sub-second analytical queries. |
-| **Attack Path Reasoning** | Neo4j Graph DB | Dynamic network topology and asset dependency graphs for blast-radius calculation. |
-| **Semantic RAG Memory** | Qdrant Vector DB | Similarity search against past incident playbooks and threat intelligence. |
-| **Autonomous AI Swarm** | Gemini 1.5 Pro + LangGraph | Multi-agent collaboration for alert triage, root-cause analysis, and MITRE mapping. |
-| **SOAR Automation** | Python / Custom Engine | Automated IP isolation, token revocation, firewall policy updates, and Slack alerts. |
-| **Active Deception Grid** | Cowrie & Dionaea Honeypots | SSH, Telnet, FTP, and SMB honeypot traps for early threat detection. |
-| **Full-Stack Observability** | Prometheus, Grafana, Jaeger | OTLP distributed tracing, metrics dashboards, and performance profiling. |
-
----
-
-## 💻 Technology Stack
-
-- **Frontend**: React, Vite, Nginx, Vanilla CSS (Glassmorphism design system)
-- **Backend Services**: Python 3.11+, FastAPI, Uvicorn, SQLAlchemy, Pydantic v2
-- **AI & ML**: LangChain, LangGraph, Google Gemini 1.5 Pro, scikit-learn (IsolationForest, DBSCAN)
-- **Data & Storage**: PostgreSQL 16, Redis 7, ClickHouse 24, Neo4j 5, Qdrant 1.9, Apache Kafka 7.5
-- **Infrastructure & Orchestration**: Docker, Docker Compose, Kubernetes, Helm, Terraform, HashiCorp Vault
-
----
-
-## 🛠️ Quickstart (Docker Compose)
-
-### 1. Clone & Setup Environment
-```bash
-git clone https://github.com/akshat2685/AI_SOC_2.git
-cd AI_SOC_2
-cp .env.example .env
+```
+backend/app/
+  main.py                 FastAPI wiring (routers + middleware). Does not boot — see below
+  api/v1/                 alerts, incidents, auth, api_keys, notifications, compliance, stub_routes
+  ai/                     confidence_scoring / explainability / output_validation (real, unwired)
+  application/            alert processing service + audit logger (Kafka hop dead: no aiokafka)
+  auth/                   oauth2 / rbac / session_manager (complete, unused, contains hardcoded secret)
+  core/                   config (7 required env vars), security (bcrypt+jose), logger, auth contextvars
+  domain/                 19 SQLAlchemy models + Pydantic schemas (the solid part)
+  infrastructure/         storage engine (Postgres real; Neo4j/Qdrant ornamental), event bus (stub only),
+                          repositories (real, unused), audit_consumer (complete pipeline, never started)
+  workers.py              demo loop on in-memory stub bus (broken imports)
+frontend/                 Next.js (not React+Vite). Real views: Dashboard, Incidents, Attack Graph, Executive.
+                          Mock-data views: Chaos, Federation, AR threat map, SaaS payment wall, voice bar
+*_PROMPT.md               7 agent prompt files, loaded by nothing
+docker-compose.yml        16 services; 2 unbuildable, most unwired
 ```
 
-Edit `.env` to configure your API key:
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GOOGLE_API_KEY=your_google_api_key_here
-POSTGRES_PASSWORD=changeme_in_production
-CLICKHOUSE_PASSWORD=changeme_clickhouse
-```
+## Running it
 
-### 2. Launch Container Stack
-```bash
-docker compose up -d --build
-```
+**Prereqs:** Docker, and two code fixes (backend won't start without them).
 
-### 3. Verify System Health
-```bash
-python -c "
-import urllib.request
-for url in ['http://localhost/', 'http://localhost:8000/docs', 'http://localhost:8001/docs', 'http://localhost:3000/api/health']:
-    print(url, urllib.request.urlopen(url).status)
-"
-```
+1. **Fix the fatal imports** — remove/replace:
+   - `backend/app/api/v1/alerts.py:12` (`from intelligence_engine.agents.soc_orchestrator import run_orchestrator`)
+   - `backend/app/api/v1/notifications.py:23-26` (`intelligence_engine.core.crypto` → nonexistent fallback)
+2. **Set the 7 required env vars** (`backend/app/core/config.py` raises `ValueError` without them): `GEMINI_API_KEY`, `SOAR_API_KEY`, `SOAR_API_ENDPOINT`, `POSTGRES_URL`, `SECRET_KEY`, `KAFKA_BOOTSTRAP_SERVERS`, `AUDIT_SECRET_KEY` — or copy `.env.example` and fill it in
+3. `docker compose up -d` (Postgres is the only datastore the app actually needs)
+4. API at `http://localhost:8000/docs` · frontend at `http://localhost` (port 80)
 
----
+Honest expectation after the fixes: auth + API keys + alerts/incidents CRUD against Postgres, plus a dashboard UI — with a set of fake stub endpoints alongside the real ones.
 
-## ☸️ Enterprise Kubernetes Deployment
+## Known blockers
 
-Production Kubernetes manifests are provided under `./k8s/` and `./kubernetes/`:
+1. **Backend doesn't boot** (phantom `intelligence_engine` imports + 7-var env gate)
+2. **No AI**: no LLM SDK, no agent code, prompts orphaned — "multi-agent swarm" exists only in docs
+3. **No threat-intel pipeline**: no STIX/TAXII/feeds/OTX/VirusTotal anywhere
+4. **No SOAR execution**: only DDL tables (`playbooks` defined twice, incompatibly)
+5. **Auth gaps**: only 3 routers enforce auth; alerts/incidents/stubs silently serve tenant 1 to anonymous requests
 
-```bash
-# 1. Create namespace and secrets
-kubectl create namespace shieldai-soc
-kubectl create secret generic shieldai-secrets \
-  --from-literal=GEMINI_API_KEY="your_api_key" \
-  --from-literal=POSTGRES_PASSWORD="secure_db_password" \
-  -n shieldai-soc
+## ⚠️ Security warnings — do not expose this publicly
 
-# 2. Deploy manifests
-kubectl apply -f ./k8s/ -n shieldai-soc
+- `backend/app/auth/oauth2.py` contains a **hardcoded production secret** (unused module, but committed)
+- `POST /register` grants **TENANT_ADMIN to anyone**, no verification
+- `SaaSPaymentWall.tsx` POSTs **raw card number/expiry/CVC** to the backend with no payment processor
+- `fix-db.mjs` injects `admin`/`password` credentials
+- 22 unauthenticated stub routes are mounted in `main.py`
 
-# 3. Check cluster status
-kubectl get pods -n shieldai-soc
-```
+## Honest roadmap
 
----
+1. Make the backend boot (fix phantom imports, relax env gate for dev)
+2. Delete or gate the 22 stub routes; fix `/register` and remove committed secrets
+3. Build **one** real pipeline end-to-end: ingest → score → alert → case (this is the missing organ)
+4. Wire the orphaned `ai/` utilities into that pipeline
+5. Add threat-intel ingestion (STIX/TAXII or OTX free API) before adding more datastores
+6. Only then: agents, SOAR runner, honeypot consumers — one at a time, each wired, none decorative
 
-## 🌐 Interactive Knowledge Graph (Graphify)
+## Docs vs. reality
 
-ShieldAI includes a built-in AST knowledge graph generated via **Graphify**:
-- **3,652 Nodes** · **5,307 Edges** · **410 Communities**
-
-### Access Visualizers
-
-Open the files below from the root of this repository after cloning:
-
-- 🌐 [graph.html](./graphify-out/graph.html) — Interactive D3 Web Visualizer
-- 🌲 [GRAPH_TREE.html](./graphify-out/GRAPH_TREE.html) — Collapsible Tree Explorer
-- 📄 [GRAPH_REPORT.md](./graphify-out/GRAPH_REPORT.md) — Architecture & Community Hubs Report
-
----
-
-## 📡 API Reference & Microservices
-
-| Service Name | Port | Description | Documentation URL |
-| :--- | :--- | :--- | :--- |
-| **SOC Frontend** | `80` | Main Web UI Dashboard | `http://localhost/` |
-| **SOC Backend API** | `8000` | REST API (Auth, Tenancy, Alerts) | `http://localhost:8000/docs` |
-| **AI Intelligence Layer** | `8001` | AI Copilot & Triage Engine | `http://localhost:8001/docs` |
-| **Grafana Monitoring** | `3000` | Visual System Metrics | `http://localhost:3000` |
-| **Neo4j Graph Browser** | `7474` | Attack Chain Graph Explorer | `http://localhost:7474` |
-| **Qdrant Vector DB** | `6333` | RAG & Vector Search API | `http://localhost:6333/dashboard` |
-
----
-
-## 🧪 Testing & Validation Suite
-
-Run automated unit and integration tests:
-
-```bash
-# Run backend test suite
-python -m pytest tests/
-
-# Run Attack Simulator to fire synthetic threats
-python simulate_attacks.py
-```
-
----
-
-## 🔒 Security & Compliance
-
-ShieldAI enforces strict enterprise security controls:
-- **SOC 2 Type II & ISO 27001 Alignment**
-- **MITRE ATT&CK Framework Mapping**
-- **Zero Trust RBAC**: JWT bearer tokens, bcrypt password hashing
-- **100% Parameterized SQL Queries** (Zero SQL Injection exposure)
-- **Asynchronous Rate-Limiting** via Redis middleware
-- **Vault Integration**: Zero plaintext secrets stored on disk
-
----
-
-## 🤝 Contributing & License
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development workflows and [SECURITY.md](SECURITY.md) for vulnerability disclosures.
-
-Licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) for details.
+Several docs describe a different or future system: `architecture_analysis.md` describes an Express `server.js` backend (doesn't exist), `deployment_report.md` claims a signed-off production deployment (the deploy script has unfilled placeholders), and `PRODUCT_DOCUMENTATION.md` documents features with no code behind them. Treat all docs except this README as aspirational until verified against code.
