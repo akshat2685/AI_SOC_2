@@ -11,7 +11,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile.backend-prod
     dockerContext: .
-    plan: starter
+    plan: free
     healthCheckPath: /api/v1/health
     envVars:
       # --- required: auto-generated once, kept by Render afterwards ---
@@ -34,14 +34,27 @@ services:
         sync: false
       - key: SOAR_API_ENDPOINT
         sync: false
+      # --- Neo4j Aura (free tier): paste from console.neo4j.io ---
       - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      # --- Qdrant Cloud (free tier): paste from cloud.qdrant.io ---
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      # --- Upstash Redis (Phase 5; harmless until wired) ---
+      - key: REDIS_URL
         sync: false
       # --- safe defaults ---
       - key: LOG_LEVEL
         value: INFO
-      # KAFKA_BOOTSTRAP_SERVERS intentionally unset: the event bus runs
-      # in-memory with a clear warning. Set it if you add a Kafka service.
+      # KAFKA_BOOTSTRAP_SERVERS intentionally unset for now (Phase 5): the
+      # event bus runs in-memory with a clear warning.
 
 databases:
   - name: aisoc2-db
-    plan: starter
+    plan: free

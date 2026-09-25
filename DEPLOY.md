@@ -30,11 +30,13 @@ Prerequisites: this repo pushed to GitHub on branch `mvp-live`.
 | `BACKEND_CORS_ORIGINS` | **you set this after Part 2** | Your Vercel URL, e.g. `https://aisoc2-frontend.vercel.app` |
 | `GEMINI_API_KEY` | **you paste this** | From [Google AI Studio](https://aistudio.google.com/apikey). Without it, AI triage/investigation endpoints stay dark |
 | `SOAR_API_KEY` / `SOAR_API_ENDPOINT` | optional | Turn on automated response actions |
-| `NEO4J_URI` | optional | Neo4j Aura free tier (see 1.4) |
+| `NEO4J_URI` / `NEO4J_USER` / `NEO4J_PASSWORD` | optional | Neo4j Aura free tier (see 1.4) |
+| `QDRANT_URL` / `QDRANT_API_KEY` | optional | Qdrant Cloud free tier: cluster URL + API key |
+| `REDIS_URL` | optional | Upstash Redis (used in Phase 5; harmless until then) |
 | `LOG_LEVEL` | `INFO` | |
 
-> `KAFKA_BOOTSTRAP_SERVERS` is intentionally **unset**: the event bus runs
-> in-memory and logs a warning. Set it later if you add a Kafka service.
+> `KAFKA_BOOTSTRAP_SERVERS` is intentionally **unset** for now (Phase 5):
+> the event bus runs in-memory and logs a warning.
 
 ### 1.3 Verify
 
