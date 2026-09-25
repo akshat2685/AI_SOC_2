@@ -10,7 +10,8 @@ from app.core.auth import current_tenant_id
 from app.api.deps import require_roles_dual
 from app.domain.models import (
     Asset, Alert, Incident, AuditEvent, ApprovalRequest, PlaybookExecution,
-    Playbook, RoleEnum, ApprovalStatusEnum,
+    Playbook, RoleEnum, ApprovalStatusEnum, StatusEnum, SeverityEnum,
+    CriticalityEnum,
 )
 
 router = APIRouter()
@@ -40,6 +41,49 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         "system_health": "healthy",
     }
 
+async def _gemini_generate(prompt_text: str, system_text: str) -> str:
+    """Call Gemini generateContent and return the text answer.
+
+    Raises HTTPException 503 when GEMINI_API_KEY is unset, 502 on provider
+    failure. Shared by /chat and /copilot/chat.
+    """
+    api_key = settings.GEMINI_API_KEY
+    model = settings.GEMINI_MODEL or "gemini-3.5-flash"
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="AI Copilot is not configured: set GEMINI_API_KEY in the backend environment and redeploy.",
+        )
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(
+                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                params={"key": api_key},
+                json={
+                    "system_instruction": {"parts": [{"text": system_text}]},
+                    "contents": [{"parts": [{"text": prompt_text}]}],
+                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1024},
+                },
+            )
+    except httpx.HTTPError as e:
+        logger.error("gemini_upstream_unreachable", error=str(e))
+        raise HTTPException(status_code=502, detail="AI provider unreachable; try again shortly.")
+
+    if resp.status_code == 404:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Model '{model}' is not available for this API key; set GEMINI_MODEL to a supported model.",
+        )
+    if resp.status_code != 200:
+        logger.error("gemini_provider_error", status=resp.status_code, body=resp.text[:500])
+        raise HTTPException(status_code=502, detail="AI provider returned an error; try again shortly.")
+
+    try:
+        return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError, TypeError, ValueError):
+        raise HTTPException(status_code=502, detail="AI provider returned an unreadable response.")
+
+
 @router.post("/chat")
 async def chat(
     data: dict,
@@ -51,12 +95,6 @@ async def chat(
     if not query:
         raise HTTPException(status_code=400, detail="Provide 'query' in the request body.")
 
-    api_key = settings.GEMINI_API_KEY
-    if not api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="AI Copilot is not configured: set GEMINI_API_KEY in the backend environment and redeploy.",
-        )
     model = settings.GEMINI_MODEL or "gemini-3.5-flash"
 
     # Optional alert context for grounded answers.
@@ -82,37 +120,50 @@ async def chat(
         "Answer concisely and practically, with concrete next steps. "
         "If asked about non-security topics, answer briefly and steer back to security operations."
     )
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(
-                f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                params={"key": api_key},
-                json={
-                    "system_instruction": {"parts": [{"text": system}]},
-                    "contents": [{"parts": [{"text": query + context_block}]}],
-                    "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1024},
-                },
-            )
-    except httpx.HTTPError as e:
-        logger.error("chat_upstream_unreachable", error=str(e))
-        raise HTTPException(status_code=502, detail="AI provider unreachable; try again shortly.")
-
-    if resp.status_code == 404:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Model '{model}' is not available for this API key; set GEMINI_MODEL to a supported model.",
-        )
-    if resp.status_code != 200:
-        logger.error("chat_provider_error", status=resp.status_code, body=resp.text[:500])
-        raise HTTPException(status_code=502, detail="AI provider returned an error; try again shortly.")
-
-    try:
-        text = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError, TypeError, ValueError):
-        raise HTTPException(status_code=502, detail="AI provider returned an unreadable response.")
-
+    text = await _gemini_generate(query + context_block, system)
     logger.info("chat_answered", model=model, query_len=len(query))
     return {"response": text, "model": model}
+
+
+@router.post("/copilot/chat")
+async def copilot_chat(
+    data: dict,
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    """SOC Copilot chat in the shape the frontend drawer calls.
+
+    Request:  {conversation_id, question, history, context_drilldown}
+    Response: {answer, citations, reasoning_steps, confidence_score}
+    Requires GEMINI_API_KEY on the backend; honest 503 until it is set.
+    """
+    question = str(data.get("question") or data.get("query") or data.get("message") or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Provide 'question' in the request body.")
+
+    history = data.get("history")
+    hist_block = ""
+    if isinstance(history, list) and history:
+        turns = []
+        for m in history[-6:]:
+            if isinstance(m, dict):
+                turns.append(f"{m.get('role', 'user')}: {str(m.get('content', ''))[:400]}")
+        if turns:
+            hist_block = "\n\nConversation so far:\n" + "\n".join(turns)
+
+    system = (
+        "You are ShieldAI SOC Copilot, an assistant for security analysts. "
+        "Answer concisely and practically, with concrete next steps. "
+        "If asked about non-security topics, answer briefly and steer back to security operations."
+    )
+    answer = await _gemini_generate(question + hist_block, system)
+    logger.info("copilot_chat_answered", query_len=len(question))
+    return {
+        "answer": answer,
+        "citations": [],
+        "reasoning_steps": [],
+        "confidence_score": 0.9,
+        "model": settings.GEMINI_MODEL or "gemini-3.5-flash",
+    }
 
 # ---------------------------------------------------------------------------
 # MITRE ATT&CK
@@ -615,14 +666,71 @@ async def cleanup(
 # ---------------------------------------------------------------------------
 
 @router.get("/executive/metrics")
-async def executive_metrics(db: AsyncSession = Depends(get_db)):
-    try:
-        inc_count = (await db.execute(select(func.count(Incident.id)))).scalar() or 0
-        alert_count = (await db.execute(select(func.count(Alert.id)))).scalar() or 0
-    except Exception:
-        inc_count = 0
-        alert_count = 0
-    return {"metrics": {"total_incidents": inc_count, "total_alerts": alert_count}}
+async def executive_metrics(
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    """Executive metrics in the flat shape the frontend dashboard consumes.
+
+    Counts are tenant-scoped and computed from the database. Scores are
+    labeled derived heuristics ("derived-heuristic-v1"), not ML output.
+    trend/target series are empty until timeseries data exists.
+    """
+    tenant_id = current_tenant_id.get() or 1
+    open_statuses = [StatusEnum.OPEN, StatusEnum.IN_PROGRESS]
+    closed_statuses = [StatusEnum.RESOLVED, StatusEnum.CLOSED]
+
+    async def _count(model, *clauses):
+        return (await db.execute(
+            select(func.count(model.id)).where(model.tenant_id == tenant_id, *clauses)
+        )).scalar() or 0
+
+    open_inc = await _count(Incident, Incident.status.in_(open_statuses))
+    resolved_inc = await _count(Incident, Incident.status.in_(closed_statuses))
+    total_alerts = await _count(Alert)
+    crit_open = await _count(
+        Incident, Incident.status.in_(open_statuses), Incident.severity == SeverityEnum.CRITICAL)
+    high_open = await _count(
+        Incident, Incident.status.in_(open_statuses), Incident.severity == SeverityEnum.HIGH)
+    crit_assets = await _count(
+        Asset, Asset.criticality.in_([CriticalityEnum.CRITICAL, CriticalityEnum.HIGH]))
+    total_assets = await _count(Asset)
+
+    # MTTR from resolved incidents' open duration; 0 when nothing resolved yet.
+    mttr_hours = 0.0
+    if resolved_inc:
+        rows = (await db.execute(
+            select(Incident.created_at, Incident.updated_at).where(
+                Incident.tenant_id == tenant_id, Incident.status.in_(closed_statuses))
+        )).all()
+        durs = [(u - c).total_seconds() / 3600 for c, u in rows if c and u and u > c]
+        if durs:
+            mttr_hours = round(sum(durs) / len(durs), 2)
+
+    posture_score = max(0, 100 - (crit_open * 15 + high_open * 8 + open_inc * 2))
+    asset_risk_score = round(100 * crit_assets / total_assets, 1) if total_assets else 0.0
+
+    if open_inc == 0 and total_alerts == 0:
+        summary = ("No open incidents and no ingested alerts for this tenant. "
+                   "Posture is nominal; connect an alert source to begin monitoring.")
+    else:
+        summary = (f"{open_inc} open incident(s) ({crit_open} critical, {high_open} high), "
+                   f"{resolved_inc} resolved, {total_alerts} alert(s) ingested. "
+                   f"Mean time to resolve is {mttr_hours}h.")
+
+    return {
+        "posture_score": posture_score,
+        "mttr_hours": mttr_hours,
+        "mttd_hours": 0.0,
+        "open_incidents": open_inc,
+        "resolved_incidents": resolved_inc,
+        "total_alerts": total_alerts,
+        "asset_risk_score": asset_risk_score,
+        "executive_summary": summary,
+        "threat_trends": [],
+        "top_targets": [],
+        "score_basis": "derived-heuristic-v1",
+    }
 
 # ---------------------------------------------------------------------------
 # Firewall
