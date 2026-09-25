@@ -35,7 +35,14 @@ def get_required_env(key: str, default: str = None) -> str:
 
 @lru_cache()
 def get_llm():
-    api_key = get_required_env("GEMINI_API_KEY", "dummy_key")
+    # Fail fast when no key is configured. Building the client with a dummy
+    # key would hang the worker on network retries instead of degrading.
+    api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY (or GOOGLE_API_KEY) is not set: the SOC orchestrator "
+            "needs a Gemini API key. Set it to enable AI investigation."
+        )
     _base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
     return wrap_llm_with_router(_base_llm)
 

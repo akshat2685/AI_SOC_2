@@ -1,4 +1,4 @@
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY requirements.txt requirements.memory.txt ./
 COPY backend/app/requirements.txt ./backend-requirements.txt
 COPY intelligence_engine/requirements.txt ./ie-requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt -r requirements.memory.txt -r backend-requirements.txt -r ie-requirements.txt
-FROM python:3.11-slim as runner
+FROM python:3.11-slim AS runner
 
 WORKDIR /app
 
@@ -28,4 +28,6 @@ COPY backend/alembic.ini .
 ENV PYTHONPATH=/app/backend:/app
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so Render's PORT env var is honored ($PORT is injected by Render;
+# defaults to 8000 for local docker runs).
+CMD uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}

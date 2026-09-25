@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { api } from '@/lib/api';
+import { api, API_BASE_URL } from '@/lib/api';
 import { 
   Database, 
   Search, 
@@ -39,8 +39,9 @@ export default function MemoryExplorerView() {
     setSearching(true);
     setSearchResults([]);
     try {
-      // Direct semantic search endpoint in memory service
-      const res = await fetch(`/memory/search?collection=${collection}&q=${encodeURIComponent(searchQuery)}&top_k=3`);
+      // Direct semantic search endpoint in memory service (falls back to
+      // simulated results below when the backend has no such route yet).
+      const res = await fetch(`${API_BASE_URL}/api/v1/memory/search?collection=${collection}&q=${encodeURIComponent(searchQuery)}&top_k=3`);
       if (res.ok) {
         const data = await res.json();
         setSearchResults(data);

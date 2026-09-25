@@ -16,6 +16,7 @@ class ThreatFeed(TenantBase):
     description = Column(String(255), nullable=True)
     provider = Column(String(100), nullable=True)
     is_active = Column(Boolean, default=True)
+    tlp = Column(String(20), nullable=True, default="CLEAR") # traffic light protocol: max marking this feed may carry
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc), onupdate=lambda: datetime.datetime.now(datetime.timezone.utc))
     

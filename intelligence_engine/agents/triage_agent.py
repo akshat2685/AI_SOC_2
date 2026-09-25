@@ -1,3 +1,4 @@
+import asyncio
 import os
 import json
 from typing import Dict, Any, Literal, TypedDict
@@ -22,9 +23,36 @@ def get_required_env(key: str, default: str = None) -> str:
         raise RuntimeError(f"Required environment variable {key} is not set")
     return value
 
-api_key = get_required_env("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY"))
-_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
-llm = wrap_llm_with_router(_base_llm)
+def _get_api_key() -> str:
+    """Resolve the Gemini API key at call time, not import time.
+
+    The backend must boot without a key (agents stay dark until one is
+    configured); failing here would crash the whole API on import.
+    """
+    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not key:
+        raise RuntimeError(
+            "GEMINI_API_KEY (or GOOGLE_API_KEY) is not set: the triage agent "
+            "needs a Gemini API key. Set it to enable AI triage."
+        )
+    return key
+
+
+_llm = None
+
+def get_llm():
+    """Lazily build (and cache) the triage LLM client."""
+    global _llm
+    if _llm is None:
+        _llm = wrap_llm_with_router(
+            ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=_get_api_key())
+        )
+    return _llm
+
+
+# Backwards-compatible module aliases (resolved lazily; do not use at import time).
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+llm = None  # use get_llm() instead; kept as a name so old imports don't break
 
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 
@@ -55,10 +83,18 @@ async def evaluate_against_graphrag(alert: Dict[str, Any]) -> Dict[str, Any]:
     
     if threat_actor != 'Unknown':
         try:
-            neo4j_auth = os.getenv("NEO4J_AUTH", "neo4j/password_in_production")
-            password = neo4j_auth.split("/")[1] if "/" in neo4j_auth else "neo4j"
-            graph_engine = AttackGraphReasoningEngine(NEO4J_URI, "neo4j", password)
-            blast_radius = await graph_engine.find_blast_radius(threat_actor)
+            # Env-only credentials: NEO4J_PASSWORD (preferred) or legacy NEO4J_AUTH=user/pass.
+            # No hardcoded default password -- without one we skip GraphRAG.
+            neo4j_auth = os.getenv("NEO4J_AUTH", "")
+            password = os.getenv("NEO4J_PASSWORD") or (neo4j_auth.split("/")[1] if "/" in neo4j_auth else "")
+            if not password:
+                raise RuntimeError("NEO4J_PASSWORD (or NEO4J_AUTH) is not set: skipping GraphRAG context")
+            graph_engine = AttackGraphReasoningEngine(NEO4J_URI, os.getenv("NEO4J_USER", "neo4j"), password)
+            # Fail fast when Neo4j is absent (MVP: graph is optional). Without a
+            # timeout the driver's connection retries block the worker for ~30s+.
+            blast_radius = await asyncio.wait_for(
+                graph_engine.find_blast_radius(threat_actor), timeout=10
+            )
             await graph_engine.close()
             logger.info("graphrag_triage_completed", threat_actor=threat_actor, count=len(blast_radius))
         except Exception as e:
@@ -75,12 +111,12 @@ async def triage_agent(alert: Dict[str, Any]) -> TriageState:
     graph_context = await evaluate_against_graphrag(alert)
     
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an Autonomous Triage Engine. Analyze the incoming alert and its GraphRAG context (blast radius). Evaluate Risk (0-100), Severity (Low, Medium, High, Critical), and Confidence (0.0-1.0). Output JSON: {'risk_score': 85, 'severity': 'High', 'confidence': 0.9, 'triage_decision': 'Escalate', 'reasoning': '...'}. Decision must be one of: 'Escalate', 'Investigate', 'Dismiss'."),
+        ("system", "You are an Autonomous Triage Engine. Analyze the incoming alert and its GraphRAG context (blast radius). Evaluate Risk (0-100), Severity (Low, Medium, High, Critical), and Confidence (0.0-1.0). Output JSON: {{'risk_score': 85, 'severity': 'High', 'confidence': 0.9, 'triage_decision': 'Escalate', 'reasoning': '...'}}. Decision must be one of: 'Escalate', 'Investigate', 'Dismiss'."),
         ("user", "Alert: {alert}\nGraph Context: {graph_context}")
     ])
     
     parser = JsonOutputParser(pydantic_object=TriageLLMResponse)
-    chain = prompt | llm | parser
+    chain = prompt | get_llm() | parser
     
     state: TriageState = {
         'alert_id': alert_id,

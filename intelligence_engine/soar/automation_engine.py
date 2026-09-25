@@ -7,6 +7,21 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+# Maps intel-connector severity labels onto the 0-100 risk scale used by
+# evaluate_risk_policy, so a SecurityEvent from any intel connector can
+# drive automated response without translation glue elsewhere.
+_SEVERITY_RISK = {
+    "CRITICAL": 90,
+    "HIGH": 70,
+    "MEDIUM": 45,
+    "LOW": 20,
+}
+
+
+def risk_score_from_severity(severity: str) -> int:
+    """Convert a connector severity label (LOW/MEDIUM/HIGH/CRITICAL) to a 0-100 risk score."""
+    return _SEVERITY_RISK.get(str(severity or "").upper(), 50)
+
 def get_required_env(key: str, default: Optional[str] = None) -> str:
     value = os.getenv(key, default)
     if not value:
@@ -106,6 +121,28 @@ class SOARAutomationEngine:
             return await self._request_approval(risk_score, action)
         else:
             return await self._escalate_to_human(risk_score, action)
+
+    async def evaluate_event(
+        self,
+        event: Dict[str, Any],
+        action: str,
+    ) -> Dict[str, Any]:
+        """Evaluate a threat-intel event (SecurityEvent-shaped dict) for automated response.
+
+        This is the intel -> automation bridge: connectors normalize raw
+        sightings into SecurityEvents, and this method turns the event's
+        severity/confidence into a risk score for the policy engine.
+        Confidence (0-100, from the intel scoring step) wins when present;
+        otherwise the severity label is mapped onto the risk scale.
+        """
+        confidence = event.get("confidence")
+        try:
+            risk_score = int(confidence)
+        except (TypeError, ValueError):
+            risk_score = risk_score_from_severity(event.get("severity", ""))
+        risk_score = max(0, min(100, risk_score))
+        payload = {"event_id": event.get("event_id"), "source": event.get("source")}
+        return await self.evaluate_risk_policy(risk_score, action, payload)
 
     async def _execute_automatic(
         self,

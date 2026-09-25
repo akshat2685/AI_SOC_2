@@ -17,7 +17,29 @@ class BaseIngestor(ABC):
         pass
 
     def run(self) -> List[Dict[str, Any]]:
-        """Execute the ingestion pipeline."""
+        """Execute the ingestion pipeline.
+
+        fetch -> parse -> normalize TLP markings -> confidence scoring.
+        The enrichment steps are best-effort: they never break ingestion.
+        """
         raw_data = self.fetch_data()
         indicators = self.parse_data(raw_data)
+        indicators = self._enrich_indicators(indicators)
         return indicators
+
+    def _enrich_indicators(self, indicators: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Normalize TLP markings and compute confidence scores."""
+        try:
+            try:
+                from intelligence_engine.threat_intel.models.tlp import normalize_tlp
+            except ImportError:
+                from threat_intel.models.tlp import normalize_tlp
+            try:
+                from intelligence_engine.threat_intel.processing.scoring import score_indicators
+            except ImportError:
+                from threat_intel.processing.scoring import score_indicators
+        except ImportError:
+            return indicators  # enrichment unavailable; return parsed as-is
+        for indicator in indicators:
+            indicator["tlp"] = normalize_tlp(indicator.get("tlp"))
+        return score_indicators(indicators)

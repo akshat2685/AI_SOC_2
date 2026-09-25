@@ -1,7 +1,10 @@
+import logging
 import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 def get_required_env(key: str, default: Optional[str] = None) -> str:
     """Fail-fast validation: raise RuntimeError if required env var is missing and no default provided."""
@@ -22,6 +25,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     SECRET_KEY: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
     KAFKA_BOOTSTRAP_SERVERS: str = ""
     AUDIT_SECRET_KEY: str = ""
 
@@ -40,20 +44,30 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        required_secrets = {
-            "GEMINI_API_KEY": self.GEMINI_API_KEY,
-            "SOAR_API_KEY": self.SOAR_API_KEY,
-            "SOAR_API_ENDPOINT": self.SOAR_API_ENDPOINT,
-            "POSTGRES_URL": self.POSTGRES_URL,
-            "SECRET_KEY": self.SECRET_KEY,
-            "KAFKA_BOOTSTRAP_SERVERS": self.KAFKA_BOOTSTRAP_SERVERS,
-            "AUDIT_SECRET_KEY": self.AUDIT_SECRET_KEY,
-        }
-        missing = [k for k, v in required_secrets.items() if not v]
-        if missing:
+        # Fail fast ONLY on SECRET_KEY. Every other integration degrades
+        # gracefully with a warning so the MVP boots without optional
+        # services configured.
+        if not self.SECRET_KEY:
             raise ValueError(
-                f"Missing required environment variables: {', '.join(missing)}. "
-                "Set them in .env or as system environment variables."
+                "Missing required environment variable: SECRET_KEY. "
+                "Set it in .env or as a system environment variable. "
+                'Example: export SECRET_KEY="$(openssl rand -hex 32)"'
+            )
+        degraded = {
+            "GEMINI_API_KEY": "AI agent features (triage / investigation) are disabled",
+            "GOOGLE_API_KEY": "Google API fallback for AI agents is disabled",
+            "SOAR_API_KEY": "automated response actions are disabled",
+            "SOAR_API_ENDPOINT": "automated response actions are disabled",
+            "KAFKA_BOOTSTRAP_SERVERS": "event bus runs in-memory; streaming integrations disabled",
+            "AUDIT_SECRET_KEY": "audit-log signing is disabled",
+        }
+        for key, consequence in degraded.items():
+            if not getattr(self, key, ""):
+                logger.warning("config degraded: %s not set -- %s", key, consequence)
+        if not (self.POSTGRES_URL or self.DATABASE_URL):
+            logger.warning(
+                "config degraded: neither POSTGRES_URL nor DATABASE_URL is set -- "
+                "using local SQLite fallback (./soc.db). Set POSTGRES_URL for production."
             )
 
 @lru_cache()

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import structlog
 from abc import ABC, abstractmethod
 from typing import Dict, Any
@@ -15,10 +16,19 @@ class BaseConnector(ABC):
         
     async def get_credentials(self) -> Dict[str, str]:
         """
-        Retrieves credentials securely from the TenantKeyStore.
+        Retrieves credentials for the target system.
+
+        Reads SOAR_CONNECTOR_API_KEY from the environment. (The original
+        TenantKeyStore integration is not wired in this build, so env is
+        the explicit source -- there is intentionally no mock fallback.)
         """
-        # Placeholder for secure credential retrieval using self.tenant_id
-        return {"api_key": "mock_api_key"}
+        api_key = os.environ.get("SOAR_CONNECTOR_API_KEY", "")
+        if not api_key:
+            logger.warning(
+                "soar_connector_no_api_key",
+                hint="Set SOAR_CONNECTOR_API_KEY for live connector actions.",
+            )
+        return {"api_key": api_key}
 
     async def execute_with_retry(self, action_params: Dict[str, Any], max_retries: int = 3) -> Dict[str, Any]:
         """

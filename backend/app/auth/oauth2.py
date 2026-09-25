@@ -1,10 +1,29 @@
 """OAuth2 token management and verification module."""
+import os
 import time
 import uuid
 from typing import Dict, List, Optional, Any, Set
 import jwt  # PyJWT
 
-SECRET_KEY = "edysor-production-secret-key-change-in-prod"
+
+def _get_secret_key() -> str:
+    """Resolve the JWT signing key from the environment.
+
+    There is intentionally NO default: a hardcoded or fallback key would
+    let anyone forge tokens on a public deployment.
+    """
+    key = os.environ.get("SECRET_KEY")
+    if not key:
+        raise RuntimeError(
+            "SECRET_KEY environment variable must be set to issue or verify "
+            "tokens. Example: export SECRET_KEY=\"$(openssl rand -hex 32)\""
+        )
+    return key
+
+
+# Backwards-compatible module constant (may be empty if SECRET_KEY is unset;
+# prefer _get_secret_key() at call time so misconfiguration fails loudly).
+SECRET_KEY = os.environ.get("SECRET_KEY", "")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_SECONDS = 3600
 REFRESH_TOKEN_EXPIRE_SECONDS = 86400 * 7
@@ -13,12 +32,12 @@ REFRESH_TOKEN_EXPIRE_SECONDS = 86400 * 7
 _REVOKED_TOKENS: Set[str] = set()
 
 
-def _encode_token(payload: Dict[str, Any], key: str = SECRET_KEY, algorithm: str = ALGORITHM) -> str:
+def _encode_token(payload: Dict[str, Any], key: Optional[str] = None, algorithm: str = ALGORITHM) -> str:
     """Encode a JWT payload into a token string."""
-    return jwt.encode(payload, key, algorithm=algorithm)
+    return jwt.encode(payload, key or _get_secret_key(), algorithm=algorithm)
 
 
-def _decode_token(token: str, key: str = SECRET_KEY, algorithm: str = ALGORITHM) -> Optional[Dict[str, Any]]:
+def _decode_token(token: str, key: Optional[str] = None, algorithm: str = ALGORITHM) -> Optional[Dict[str, Any]]:
     """Decode and verify a JWT token string."""
     if token in _REVOKED_TOKENS:
         return None

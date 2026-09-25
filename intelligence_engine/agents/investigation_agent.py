@@ -17,9 +17,36 @@ try:
 except ImportError:
     from intelligence_engine.core.optimizations import wrap_llm_with_router
 
-api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY") or ""
-_base_llm = ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=api_key)
-llm = wrap_llm_with_router(_base_llm)
+def _get_api_key() -> str:
+    """Resolve the Gemini API key at call time, not import time.
+
+    The backend must boot without a key (agents stay dark until one is
+    configured); failing here would crash the whole API on import.
+    """
+    key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+    if not key:
+        raise RuntimeError(
+            "GEMINI_API_KEY (or GOOGLE_API_KEY) is not set: the investigation "
+            "agent needs a Gemini API key. Set it to enable AI investigation."
+        )
+    return key
+
+
+_llm = None
+
+def get_llm():
+    """Lazily build (and cache) the investigation LLM client."""
+    global _llm
+    if _llm is None:
+        _llm = wrap_llm_with_router(
+            ChatGoogleGenerativeAI(model="gemini-1.5-pro", temperature=0, google_api_key=_get_api_key())
+        )
+    return _llm
+
+
+# Backwards-compatible module aliases (resolved lazily; do not use at import time).
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY") or ""
+llm = None  # use get_llm() instead; kept as a name so old imports don't break
 
 # Database configs
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
@@ -46,7 +73,7 @@ async def planner_node(state: InvestigationState) -> InvestigationState:
         ("system", "You are a Tier-3 SOC Planner. Given the alert context, classify the alert_type as 'identity', 'malware', 'network', or 'cloud'. Output JSON with 'alert_type' and a 'plan' (list of steps)."),
         ("user", "{context}")
     ])
-    chain = prompt | llm
+    chain = prompt | get_llm()
     try:
         response = await chain.ainvoke({"context": json.dumps(state.get('context', {}))})
         clean_json = response.content.strip("```json").strip("```").strip()
@@ -98,7 +125,7 @@ async def hypothesis_node(state: InvestigationState) -> InvestigationState:
         ("system", "Analyze the evidence and context. Generate 2 hypotheses with probabilities. Output JSON: {{'hypotheses': [{{'hypothesis': '...', 'probability': 0.8}}]}}"),
         ("user", "Context: {context} Evidence: {evidence}")
     ])
-    chain = prompt | llm
+    chain = prompt | get_llm()
     try:
         response = await chain.ainvoke({"context": state.get('context'), "evidence": state.get('evidence')})
         clean_json = response.content.strip("```json").strip("```").strip()
@@ -116,7 +143,11 @@ async def attack_reconstruction_node(state: InvestigationState) -> Investigation
     blast_radius = []
     if threat_actor != 'Unknown':
         try:
-            graph_engine = AttackGraphReasoningEngine(NEO4J_URI, "neo4j", os.getenv("NEO4J_AUTH", "neo4j/password_in_production").split("/")[1])
+            neo4j_auth = os.getenv("NEO4J_AUTH", "")
+            password = os.getenv("NEO4J_PASSWORD") or (neo4j_auth.split("/")[1] if "/" in neo4j_auth else "")
+            if not password:
+                raise RuntimeError("NEO4J_PASSWORD (or NEO4J_AUTH) is not set: skipping GraphRAG context")
+            graph_engine = AttackGraphReasoningEngine(NEO4J_URI, os.getenv("NEO4J_USER", "neo4j"), password)
             blast_radius = await graph_engine.find_blast_radius(threat_actor)
             await graph_engine.close()
         except Exception as e:
@@ -128,7 +159,7 @@ async def attack_reconstruction_node(state: InvestigationState) -> Investigation
         ("system", "You are an expert SOC Analyst. Given the alert context, hypotheses, and GraphRAG blast radius, generate a detailed but concise Attack Narrative explaining the entire attack sequence, actor motives, and compromised assets."),
         ("user", "Context: {context}\nHypotheses: {hypotheses}\nBlast Radius: {blast_radius}")
     ])
-    chain = prompt | llm
+    chain = prompt | get_llm()
     try:
         response = await chain.ainvoke({
             "context": state.get('context'),
@@ -149,7 +180,7 @@ async def decision_node(state: InvestigationState) -> InvestigationState:
         ("system", "As a Tier-3 SOC Analyst, provide a final decision based on hypotheses and evidence. Output JSON: {{'observation': '...', 'confidence': 0.9, 'risk_score': 85, 'mitre_mapping': ['T1078'], 'recommended_action': 'isolate_endpoint'}}"),
         ("user", "Hypotheses: {hypotheses}\\nEvidence: {evidence}\\nAttack Story: {attack_story}")
     ])
-    chain = prompt | llm
+    chain = prompt | get_llm()
     try:
         response = await chain.ainvoke({
             "hypotheses": state.get('hypotheses'), 

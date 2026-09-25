@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter
+from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from app.core.config import settings
@@ -35,6 +36,18 @@ def create_app() -> FastAPI:
     app.add_middleware(TraceMiddleware)
     app.add_middleware(DualAuthMiddleware)
     app.add_middleware(AuditMiddleware)
+
+    # CORS must be the outermost middleware so preflight requests are
+    # handled before auth. Origins are env-driven (BACKEND_CORS_ORIGINS,
+    # comma-separated) so the Vercel frontend can call this API.
+    cors_origins = [o.strip() for o in settings.BACKEND_CORS_ORIGINS.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=cors_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # API Versioning Router
     api_router = APIRouter()

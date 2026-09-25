@@ -38,7 +38,10 @@ async def test_trigger_investigation_returns_202(
     await test_db_session.refresh(alert)
 
     # Mock orchestrator
-    with patch("backend.app.api.v1.alerts.run_orchestrator"):
+    # NOTE: patch the module instance the app actually uses (imported as
+    # `app.api.v1.alerts` via backend/app/main.py), not the `backend.`-prefixed
+    # orphan module path.
+    with patch("app.api.v1.alerts.run_orchestrator"):
         response = await async_client.post(f"/api/v1/alerts/{alert.id}/investigate")
         assert response.status_code == 202
         res_data = response.json()

@@ -1,0 +1,47 @@
+# Render blueprint for the AI SOC 2 backend (MVP).
+# Deploy: push branch `mvp-live`, then in Render dashboard -> New -> Blueprint
+# -> select the repo. Render creates the web service + Postgres below.
+#
+# IMPORTANT: set BACKEND_CORS_ORIGINS to your Vercel frontend URL after you
+# deploy the frontend (Part 2 of DEPLOY.md), otherwise the UI can't call the API.
+
+services:
+  - type: web
+    name: aisoc2-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend-prod
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /api/v1/health
+    envVars:
+      # --- required: auto-generated once, kept by Render afterwards ---
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUDIT_SECRET_KEY
+        generateValue: true
+      # --- Postgres (managed by Render, wired below) ---
+      - key: POSTGRES_URL
+        fromDatabase:
+          name: aisoc2-db
+          property: connectionString
+      # --- frontend origin(s), comma-separated. UPDATE after Vercel deploy ---
+      - key: BACKEND_CORS_ORIGINS
+        value: https://your-frontend.vercel.app
+      # --- optional integrations: set manually in the Render dashboard ---
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SOAR_API_KEY
+        sync: false
+      - key: SOAR_API_ENDPOINT
+        sync: false
+      - key: NEO4J_URI
+        sync: false
+      # --- safe defaults ---
+      - key: LOG_LEVEL
+        value: INFO
+      # KAFKA_BOOTSTRAP_SERVERS intentionally unset: the event bus runs
+      # in-memory with a clear warning. Set it if you add a Kafka service.
+
+databases:
+  - name: aisoc2-db
+    plan: starter
