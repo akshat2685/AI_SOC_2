@@ -40,6 +40,10 @@ Prerequisites: this repo pushed to GitHub on branch `mvp-live`.
 
 ### 1.3 Verify
 
+- The Blueprint runs `alembic upgrade head` automatically before each
+  deploy (`preDeployCommand` in `render.yaml`), so the Postgres tables
+  (`tenants`, `users`, `incidents`, `alerts`) are created for you.
+
 - Open `https://<your-service>.onrender.com/api/v1/health` -> expect `{"status":"ok",...}`.
 - Open `https://<your-service>.onrender.com/api/v1/openapi.json` -> the full API surface.
 - Copy the backend URL (no trailing slash). You need it for Part 2.
