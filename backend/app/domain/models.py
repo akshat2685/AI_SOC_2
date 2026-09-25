@@ -10,6 +10,14 @@ import uuid
 class Base(DeclarativeBase):
     pass
 
+# NOTE: enum columns are stored as VARCHAR (native_enum=False) on every
+# mapped_column(Enum(...)) below. The alembic migrations create these columns
+# as VARCHAR(50) and never create native Postgres enum types, so a plain
+# Enum(...) would emit casts like $1::roleenum and fail on Postgres with
+# 'type "roleenum" does not exist' on every INSERT (SQLite is unaffected,
+# which is why this only breaks on Postgres). Do not remove native_enum=False
+# without also adding the native types via a migration.
+
 class RoleEnum(str, enum.Enum):
     GLOBAL_ADMIN = "GLOBAL_ADMIN"
     TENANT_ADMIN = "TENANT_ADMIN"
@@ -70,7 +78,7 @@ class User(Base):
     tenant_id: Mapped[Optional[int]] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255))
-    role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum))
+    role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum, native_enum=False))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tenant: Mapped[Optional[Tenant]] = relationship(back_populates="users")
@@ -84,7 +92,7 @@ class Asset(Base):
     hostname: Mapped[str] = mapped_column(String(255))
     ip_address: Mapped[str] = mapped_column(String(50))
     asset_type: Mapped[str] = mapped_column(String(100))
-    criticality: Mapped[CriticalityEnum] = mapped_column(Enum(CriticalityEnum), default=CriticalityEnum.MEDIUM)
+    criticality: Mapped[CriticalityEnum] = mapped_column(Enum(CriticalityEnum, native_enum=False), default=CriticalityEnum.MEDIUM)
 
     tenant: Mapped[Tenant] = relationship(back_populates="assets")
 
@@ -95,8 +103,8 @@ class Incident(Base):
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
     title: Mapped[str] = mapped_column(String(255), index=True)
     description: Mapped[str] = mapped_column(Text)
-    severity: Mapped[SeverityEnum] = mapped_column(Enum(SeverityEnum), default=SeverityEnum.MEDIUM)
-    status: Mapped[StatusEnum] = mapped_column(Enum(StatusEnum), default=StatusEnum.OPEN)
+    severity: Mapped[SeverityEnum] = mapped_column(Enum(SeverityEnum, native_enum=False), default=SeverityEnum.MEDIUM)
+    status: Mapped[StatusEnum] = mapped_column(Enum(StatusEnum, native_enum=False), default=StatusEnum.OPEN)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -154,9 +162,9 @@ class NotificationPreference(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
-    channel: Mapped[NotificationChannelEnum] = mapped_column(Enum(NotificationChannelEnum), nullable=False)
+    channel: Mapped[NotificationChannelEnum] = mapped_column(Enum(NotificationChannelEnum, native_enum=False), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    min_severity: Mapped[SeverityEnum] = mapped_column(Enum(SeverityEnum), default=SeverityEnum.LOW)
+    min_severity: Mapped[SeverityEnum] = mapped_column(Enum(SeverityEnum, native_enum=False), default=SeverityEnum.LOW)
     quiet_hours_start: Mapped[Optional[dt.time]] = mapped_column(Time, nullable=True)
     quiet_hours_end: Mapped[Optional[dt.time]] = mapped_column(Time, nullable=True)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -180,10 +188,10 @@ class NotificationHistory(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
-    channel: Mapped[NotificationChannelEnum] = mapped_column(Enum(NotificationChannelEnum), nullable=False)
+    channel: Mapped[NotificationChannelEnum] = mapped_column(Enum(NotificationChannelEnum, native_enum=False), nullable=False)
     event_type: Mapped[str] = mapped_column(String(255), nullable=False)
     payload: Mapped[dict] = mapped_column(JSON, default=dict)
-    status: Mapped[NotificationStatusEnum] = mapped_column(Enum(NotificationStatusEnum), default=NotificationStatusEnum.DELIVERED)
+    status: Mapped[NotificationStatusEnum] = mapped_column(Enum(NotificationStatusEnum, native_enum=False), default=NotificationStatusEnum.DELIVERED)
     attempts: Mapped[int] = mapped_column(Integer, default=1)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -247,7 +255,7 @@ class PlaybookExecution(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
     playbook_id: Mapped[int] = mapped_column(ForeignKey("playbooks.id"), index=True, nullable=False)
-    status: Mapped[PlaybookStatusEnum] = mapped_column(Enum(PlaybookStatusEnum), default=PlaybookStatusEnum.PENDING)
+    status: Mapped[PlaybookStatusEnum] = mapped_column(Enum(PlaybookStatusEnum, native_enum=False), default=PlaybookStatusEnum.PENDING)
     context_data: Mapped[dict] = mapped_column(JSON, default=dict)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -263,7 +271,7 @@ class ApprovalRequest(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
     execution_id: Mapped[int] = mapped_column(ForeignKey("playbook_executions.id"), index=True, nullable=False)
-    status: Mapped[ApprovalStatusEnum] = mapped_column(Enum(ApprovalStatusEnum), default=ApprovalStatusEnum.PENDING)
+    status: Mapped[ApprovalStatusEnum] = mapped_column(Enum(ApprovalStatusEnum, native_enum=False), default=ApprovalStatusEnum.PENDING)
     requester_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     approver_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -320,7 +328,7 @@ class ComplianceViolation(Base):
     rule_id: Mapped[int] = mapped_column(ForeignKey("compliance_rules.id"), index=True, nullable=False)
     asset_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     event_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    status: Mapped[ComplianceViolationStatus] = mapped_column(Enum(ComplianceViolationStatus), default=ComplianceViolationStatus.OPEN)
+    status: Mapped[ComplianceViolationStatus] = mapped_column(Enum(ComplianceViolationStatus, native_enum=False), default=ComplianceViolationStatus.OPEN)
     details: Mapped[dict] = mapped_column(JSON, default=dict)
     detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

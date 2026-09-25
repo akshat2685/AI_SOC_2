@@ -67,7 +67,7 @@ async def list_api_keys(
 ) -> Any:
     tenant_id = current_tenant_id.get()
     result = await db.execute(select(ApiKey).where(ApiKey.tenant_id == tenant_id))
-    return [{"id": str(k.id), **k.__dict__} for k in result.scalars().all()]
+    return [{**k.__dict__, "id": str(k.id)} for k in result.scalars().all()]
 
 @router.get("/{key_id}", response_model=ApiKeyResponse)
 async def get_api_key(
@@ -80,7 +80,7 @@ async def get_api_key(
     db_obj = result.scalars().first()
     if not db_obj:
         raise HTTPException(status_code=404, detail="API Key not found")
-    return {"id": str(db_obj.id), **db_obj.__dict__}
+    return {**db_obj.__dict__, "id": str(db_obj.id)}
 
 @router.post("/{key_id}/revoke", response_model=ApiKeyResponse)
 async def revoke_api_key(
@@ -106,7 +106,7 @@ async def revoke_api_key(
         trace_id=current_trace_id.get(),
         details={"key_prefix": db_obj.key_prefix}
     )
-    return {"id": str(db_obj.id), **db_obj.__dict__}
+    return {**db_obj.__dict__, "id": str(db_obj.id)}
 
 @router.post("/{key_id}/rotate", response_model=ApiKeyCreateResponse)
 async def rotate_api_key(
