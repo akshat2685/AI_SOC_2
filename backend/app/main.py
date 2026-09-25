@@ -103,6 +103,17 @@ def create_app() -> FastAPI:
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
 
+    @app.get("/", tags=["System"], include_in_schema=False)
+    async def root():
+        return {
+            "service": "AI SOC Backend",
+            "version": settings.VERSION,
+            "status": "ok",
+            "api": settings.API_V1_STR,
+            "health": f"{settings.API_V1_STR}/health",
+            "docs": "/docs",
+        }
+
     return app
 
 app = create_app()
