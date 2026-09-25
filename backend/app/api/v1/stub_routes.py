@@ -29,7 +29,10 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
 
 @router.post("/chat")
 async def chat(query: dict):
-    return {"response": "I am the AI Copilot. How can I help you today?"}
+    raise HTTPException(
+        status_code=501,
+        detail="AI Copilot chat is not enabled in this build: it requires GEMINI_API_KEY and the agent service.",
+    )
 
 # ---------------------------------------------------------------------------
 # MITRE ATT&CK
@@ -37,7 +40,10 @@ async def chat(query: dict):
 
 @router.get("/mitre/mappings")
 async def get_mitre_mappings():
-    return []
+    raise HTTPException(
+        status_code=501,
+        detail="MITRE ATT&CK mappings are not populated in this build yet.",
+    )
 
 # ---------------------------------------------------------------------------
 # Audit Log
@@ -66,7 +72,10 @@ async def get_audit_log(
 
 @router.get("/approvals")
 async def get_approvals():
-    return []
+    raise HTTPException(
+        status_code=501,
+        detail="The approvals queue UI is not implemented in this build: use the SOAR automation engine's pending approvals instead.",
+    )
 
 # ---------------------------------------------------------------------------
 # Payments
@@ -74,17 +83,26 @@ async def get_approvals():
 
 @router.get("/payments/status")
 async def get_payment_status():
-    return {"premium": True}
+    raise HTTPException(
+        status_code=501,
+        detail="Billing is not part of this MVP build.",
+    )
 
 @router.post("/payments/checkout")
 async def checkout(data: dict):
     logger.info("checkout_requested")
-    return {"success": True, "message": "Upgraded successfully"}
+    raise HTTPException(
+        status_code=501,
+        detail="Billing is not part of this MVP build.",
+    )
 
 @router.post("/payments/downgrade")
 async def downgrade(data: dict):
     logger.info("downgrade_requested")
-    return {"success": True, "premium": False}
+    raise HTTPException(
+        status_code=501,
+        detail="Billing is not part of this MVP build.",
+    )
 
 # ---------------------------------------------------------------------------
 # Digital Twin - Topology
@@ -175,16 +193,25 @@ async def simulate(data: dict, db: AsyncSession = Depends(get_db)):
 
 @router.get("/digital_twin/blast-radius")
 async def get_blast_radius():
-    return {"nodes": [], "edges": []}
+    raise HTTPException(
+        status_code=501,
+        detail="Persisted blast-radius graphs are not implemented in this build: use POST /digital_twin/simulate for on-demand simulation.",
+    )
 
 @router.get("/digital_twin/attack-paths")
 async def get_attack_paths():
-    return {"paths": []}
+    raise HTTPException(
+        status_code=501,
+        detail="Persisted attack paths are not implemented in this build: use POST /digital_twin/simulate for on-demand simulation.",
+    )
 
 @router.delete("/digital_twin/cleanup")
 async def cleanup():
     logger.info("digital_twin_cleanup")
-    return {"status": "success"}
+    raise HTTPException(
+        status_code=501,
+        detail="Digital-twin cleanup is not implemented in this build.",
+    )
 
 # ---------------------------------------------------------------------------
 # Executive Metrics

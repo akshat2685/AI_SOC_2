@@ -41,7 +41,10 @@ async def deliver_webhook(tenant_id: int, url: str, secret_encrypted: str, paylo
         "X-Edysor-Signature": f"sha256={signature}"
     }
 
-    async with httpx.AsyncClient() as client:
+    # trust_env=False: webhook targets are explicit https URLs; ambient proxy
+    # env vars (e.g. a no_proxy list with bracketed IPv6 like [::1]) must not
+    # break client construction — httpx misparses those patterns.
+    async with httpx.AsyncClient(trust_env=False) as client:
         backoffs = [10, 60, 300]
         attempts = 0
         error_msg = ""

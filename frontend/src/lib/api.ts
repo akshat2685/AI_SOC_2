@@ -1,6 +1,14 @@
 import { useStore } from '@/store/useStore';
 
-const BASE_URL = '';
+// Backend origin. Empty string = same-origin relative URLs (docker-compose:
+// nginx proxies /api/* to the backend). For Vercel, set NEXT_PUBLIC_API_URL
+// to the Render backend URL (e.g. https://aisoc2-backend.onrender.com) --
+// it is inlined at build time because this is a static export.
+const BASE_URL = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '');
+
+// Exported so components that use raw fetch() (bypassing the api client)
+// can still target the configured backend origin.
+export const API_BASE_URL = BASE_URL;
 
 async function request(path: string, options: RequestInit = {}): Promise<any> {
   const token = useStore.getState().user?.token;

@@ -1,0 +1,63 @@
+# Render blueprint for the AI SOC 2 backend (MVP).
+# Deploy: push branch `mvp-live`, then in Render dashboard -> New -> Blueprint
+# -> select the repo. Render creates the web service + Postgres below.
+#
+# IMPORTANT: set BACKEND_CORS_ORIGINS to your Vercel frontend URL after you
+# deploy the frontend (Part 2 of DEPLOY.md), otherwise the UI can't call the API.
+
+services:
+  - type: web
+    name: aisoc2-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.backend-prod
+    dockerContext: .
+    plan: free
+    healthCheckPath: /api/v1/health
+    # NOTE: Render's free tier does not support preDeployCommand, so DB
+    # migrations run in the app's startup lifespan hook instead
+    # (backend/app/main.py -> run_db_migrations, idempotent alembic upgrade).
+    envVars:
+      # --- required: auto-generated once, kept by Render afterwards ---
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUDIT_SECRET_KEY
+        generateValue: true
+      # --- Postgres (managed by Render, wired below) ---
+      - key: POSTGRES_URL
+        fromDatabase:
+          name: aisoc2-db
+          property: connectionString
+      # --- frontend origin(s), comma-separated. UPDATE after Vercel deploy ---
+      - key: BACKEND_CORS_ORIGINS
+        value: https://your-frontend.vercel.app
+      # --- optional integrations: set manually in the Render dashboard ---
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SOAR_API_KEY
+        sync: false
+      - key: SOAR_API_ENDPOINT
+        sync: false
+      # --- Neo4j Aura (free tier): paste from console.neo4j.io ---
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USER
+        sync: false
+      - key: NEO4J_PASSWORD
+        sync: false
+      # --- Qdrant Cloud (free tier): paste from cloud.qdrant.io ---
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      # --- Upstash Redis (Phase 5; harmless until wired) ---
+      - key: REDIS_URL
+        sync: false
+      # --- safe defaults ---
+      - key: LOG_LEVEL
+        value: INFO
+      # KAFKA_BOOTSTRAP_SERVERS intentionally unset for now (Phase 5): the
+      # event bus runs in-memory with a clear warning.
+
+databases:
+  - name: aisoc2-db
+    plan: free

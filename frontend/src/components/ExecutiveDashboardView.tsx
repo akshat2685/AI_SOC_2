@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, API_BASE_URL } from '@/lib/api';
 import { 
   ShieldCheck, 
   TrendingUp,
@@ -220,7 +220,7 @@ export default function ExecutiveDashboardView() {
               onClick={async () => {
                 if (confirm('CRITICAL WARNING: This will isolate the network and wipe the LLM context. Proceed?')) {
                   try {
-                    const res = await fetch('/api/v1/emergency/panic', { method: 'POST' });
+                    const res = await fetch(`${API_BASE_URL}/api/v1/emergency/panic`, { method: 'POST' });
                     const data = await res.json();
                     alert(`Panic Triggered: \n${data.actions_taken.join(', ')}`);
                   } catch (e) {

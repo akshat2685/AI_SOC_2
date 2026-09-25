@@ -9,9 +9,10 @@ from starlette.responses import JSONResponse
 logger = structlog.get_logger(__name__)
 
 # Read Redis URI from env so limits are shared across all replicas.
-# Falls back to memory:// only when explicitly set (e.g., unit tests).
-# In production this MUST point to a Redis instance.
-_storage_uri = os.getenv("RATE_LIMIT_STORAGE_URI", "redis://redis:6379")
+# Defaults to memory:// (per-instance limits) when Redis isn't configured --
+# the MVP deploys without Redis, so rate limiting must not hard-fail.
+# Set RATE_LIMIT_STORAGE_URI=redis://<host>:6379 to share limits across replicas.
+_storage_uri = os.getenv("RATE_LIMIT_STORAGE_URI", "memory://")
 
 limiter = Limiter(
     key_func=get_remote_address,
@@ -22,7 +23,8 @@ limiter = Limiter(
 if _storage_uri.startswith("memory://"):
     logger.warning(
         "rate_limit_memory_backend",
-        reason="RATE_LIMIT_STORAGE_URI not set to Redis — limits are per-instance only, NOT shared across replicas",
+        reason="RATE_LIMIT_STORAGE_URI not set to Redis -- limits are per-instance only, NOT shared across replicas. "
+        "Set RATE_LIMIT_STORAGE_URI=redis://<host>:6379 to enable shared rate limiting.",
     )
 
 

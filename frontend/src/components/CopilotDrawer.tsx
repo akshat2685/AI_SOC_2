@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/store/useStore';
+import { API_BASE_URL } from '@/lib/api';
 
 import { 
   MessageSquare, 
@@ -55,7 +56,7 @@ export default function CopilotDrawer() {
     try {
       // Call Copilot API
       const token = user?.token || '';
-      const response = await fetch('/api/v1/copilot/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/copilot/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
