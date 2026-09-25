@@ -5,14 +5,20 @@ from typing import List, Dict, Any, Optional
 import structlog
 
 from app.infrastructure.database import get_db
-from app.domain.models import Alert, Incident
+from app.domain.models import Alert, Incident, RoleEnum
 from app.core.auth import current_tenant_id
+from app.api.deps import require_roles_dual
 from app.application.audit_logger import audit_logger
 from app.api.middleware.rate_limit_middleware import limiter
 from intelligence_engine.agents.soc_orchestrator import run_orchestrator
 
 logger = structlog.get_logger(__name__)
 router = APIRouter()
+
+# Any authenticated user (viewer+) may read alerts; mutating actions
+# (triggering an investigation) require analyst or admin.
+READ_ROLES = [RoleEnum.TENANT_ADMIN, RoleEnum.TENANT_ANALYST, RoleEnum.TENANT_VIEWER]
+WRITE_ROLES = [RoleEnum.TENANT_ADMIN, RoleEnum.TENANT_ANALYST]
 
 
 @router.get("")
@@ -22,6 +28,7 @@ async def get_alerts(
     db: AsyncSession = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
+    _auth=Depends(require_roles_dual(READ_ROLES)),
 ) -> List[Dict[str, Any]]:
     """Get alerts for the current tenant (with pagination and filtering)."""
     tenant_id = current_tenant_id.get() or 1
@@ -70,6 +77,7 @@ async def get_alerts(
 async def get_alert_details(
     id: int,
     db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
 ) -> Dict[str, Any]:
     """Get detailed information for a specific alert."""
     tenant_id = current_tenant_id.get() or 1
@@ -115,6 +123,7 @@ async def get_alert_details(
 async def get_alert_investigation(
     id: int,
     db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
 ) -> Dict[str, Any]:
     """Get investigation status and results for an alert."""
     tenant_id = current_tenant_id.get() or 1
@@ -189,6 +198,7 @@ async def trigger_investigation(
     id: int,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(WRITE_ROLES)),
 ) -> Dict[str, Any]:
     """Trigger an investigation for an alert (async, returns 202 Accepted)."""
     tenant_id = current_tenant_id.get() or 1

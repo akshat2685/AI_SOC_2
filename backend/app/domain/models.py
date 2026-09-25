@@ -105,6 +105,8 @@ class Incident(Base):
     description: Mapped[str] = mapped_column(Text)
     severity: Mapped[SeverityEnum] = mapped_column(Enum(SeverityEnum, native_enum=False), default=SeverityEnum.MEDIUM)
     status: Mapped[StatusEnum] = mapped_column(Enum(StatusEnum, native_enum=False), default=StatusEnum.OPEN)
+    verdict: Mapped[str] = mapped_column(String(50), default="UNKNOWN", server_default="UNKNOWN")
+    analyst_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
