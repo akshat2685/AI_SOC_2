@@ -15,25 +15,6 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 
-# TEMPORARY diagnostic endpoint (remove after deploy debugging)
-@router.get("/debug/db")
-async def debug_db(db: AsyncSession = Depends(get_db)) -> Dict[str, Any]:
-    import traceback
-    from sqlalchemy import text
-    out: Dict[str, Any] = {"dialect": db.bind.dialect.name if db.bind else None}
-    try:
-        out["alerts_table"] = (await db.execute(text("SELECT to_regclass('public.alerts')"))).scalar()
-        out["alembic"] = (await db.execute(text("SELECT version_num FROM alembic_version"))).scalars().all()
-        result = await db.execute(select(Alert).where(Alert.tenant_id == 1).limit(1))
-        out["query_ok"] = True
-        out["rows"] = len(result.scalars().all())
-    except Exception as e:
-        out["query_ok"] = False
-        out["error"] = f"{type(e).__name__}: {e}"
-        out["trace"] = traceback.format_exc()[-1500:]
-    return out
-
-
 @router.get("")
 @limiter.limit("100/minute")
 async def get_alerts(

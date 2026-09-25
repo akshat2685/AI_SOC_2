@@ -17,10 +17,45 @@ setup_logging()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("startup", project=settings.PROJECT_NAME, version=settings.VERSION)
+    await run_db_migrations()
     await audit_logger.start()
     yield
     await audit_logger.stop()
     logger.info("shutdown", project=settings.PROJECT_NAME)
+
+
+async def run_db_migrations() -> None:
+    """Apply pending Alembic migrations on startup.
+
+    Render's free tier does not support preDeployCommand, so migrations run
+    here instead. Alembic is idempotent: a fully-migrated database is a
+    no-op. A failed migration raises and blocks the deploy from going live.
+    """
+    import asyncio
+    import os
+    from pathlib import Path
+    from alembic import command
+    from alembic.config import Config
+
+    backend_dir = Path(__file__).resolve().parent.parent  # backend/
+    db_url = os.getenv("DATABASE_URL", os.getenv("POSTGRES_URL", ""))
+    if not db_url:
+        # Local-dev SQLite fallback: no alembic, just create tables.
+        from app.domain.models import Base
+        from app.infrastructure.storage.engine import engine
+
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("db_tables_created_sqlite_fallback")
+        return
+    cfg = Config(str(backend_dir / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    try:
+        await asyncio.to_thread(command.upgrade, cfg, "head")
+        logger.info("db_migrations_applied")
+    except Exception:
+        logger.error("db_migration_failed", exc_info=True)
+        raise
 
 def create_app() -> FastAPI:
     app = FastAPI(

@@ -40,9 +40,11 @@ Prerequisites: this repo pushed to GitHub on branch `mvp-live`.
 
 ### 1.3 Verify
 
-- The Blueprint runs `alembic upgrade head` automatically before each
-  deploy (`preDeployCommand` in `render.yaml`), so the Postgres tables
-  (`tenants`, `users`, `incidents`, `alerts`) are created for you.
+- The app runs `alembic upgrade head` in its startup lifespan hook
+  (`run_db_migrations` in `backend/app/main.py`), so the Postgres tables
+  (`tenants`, `users`, `incidents`, `alerts`) are created automatically on
+  first boot. (Render's free tier does not support `preDeployCommand`, so
+  the migration lives in the app instead of `render.yaml`.)
 
 - Open `https://<your-service>.onrender.com/api/v1/health` -> expect `{"status":"ok",...}`.
 - Open `https://<your-service>.onrender.com/api/v1/openapi.json` -> the full API surface.

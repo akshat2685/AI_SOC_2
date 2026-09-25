@@ -13,10 +13,9 @@ services:
     dockerContext: .
     plan: free
     healthCheckPath: /api/v1/health
-    # Runs inside the built image before each deploy: creates/updates all
-    # Postgres tables (tenants, users, incidents, alerts). A failed
-    # migration blocks the deploy instead of booting against an empty DB.
-    preDeployCommand: "cd backend && alembic upgrade head"
+    # NOTE: Render's free tier does not support preDeployCommand, so DB
+    # migrations run in the app's startup lifespan hook instead
+    # (backend/app/main.py -> run_db_migrations, idempotent alembic upgrade).
     envVars:
       # --- required: auto-generated once, kept by Render afterwards ---
       - key: SECRET_KEY
