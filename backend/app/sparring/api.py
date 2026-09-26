@@ -251,8 +251,11 @@ async def run_intel_pass(
     replay_scenarios = await intel_mod.build_replay_scenarios(db)
     scenarios = ioc_scenarios + replay_scenarios
 
-    from app.sparring.loop import _first_tenant_id, _intel_state
-    tenant_id = await _first_tenant_id(db)
+    # First tenant for training rows (twin learnings are global).
+    from sqlalchemy import select as _select
+    from app.domain.models import Tenant
+    tenant_id = (await db.execute(
+        _select(Tenant.id).order_by(Tenant.id).limit(1))).scalar_one_or_none()
 
     results: list[dict] = []
     training_rows: list[dict] = []
@@ -266,8 +269,18 @@ async def run_intel_pass(
         analysis: dict = {}
         if not score.get("detected"):
             try:
-                analysis = defense_mod.analyze_outcome(
-                    sc, score, await _intel_state(db, sc))
+                # Is the IoC still in the feed? (for evasion analysis)
+                intel_state: dict = {}
+                if sc.get("source") == "intel-ioc":
+                    from app.domain.models import ThreatIntelIoC
+                    ioc = sc.get("ioc") or {}
+                    exists = (await db.execute(
+                        _select(ThreatIntelIoC.id)
+                        .where(ThreatIntelIoC.ioc_type == ioc.get("type"),
+                               ThreatIntelIoC.value == ioc.get("value"))
+                        .limit(1))).scalar_one_or_none()
+                    intel_state = {"ioc_in_feed": exists is not None}
+                analysis = defense_mod.analyze_outcome(sc, score, intel_state)
                 row = _evasion_row(sc.get("technique_id") or "unknown", sc["events"])
             except Exception:
                 continue
@@ -308,12 +321,17 @@ async def run_intel_pass(
         })
 
     recorded = 0
+    # Commit scenarios first — they must persist even if training-row
+    # recording fails.
+    await db.commit()
     if training_rows and tenant_id is not None:
         from app.ml import feedback as feedback_mod
-        res = await feedback_mod.record_sparring_rows(db, tenant_id, training_rows)
-        recorded = res.get("recorded", 0)
-    else:
-        await db.commit()
+        try:
+            res = await feedback_mod.record_sparring_rows(db, tenant_id, training_rows)
+            recorded = res.get("recorded", 0)
+        except Exception:
+            # Training rows are best-effort; the scenarios above are safe.
+            pass
 
     audit_logger.info("twin_intel_pass", extra={
         "trace_id": current_trace_id(), "user_id": current_user_id(),
