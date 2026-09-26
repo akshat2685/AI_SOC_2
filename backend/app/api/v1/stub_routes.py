@@ -383,9 +383,43 @@ async def approve_request(
     if ar.status != ApprovalStatusEnum.PENDING:
         raise HTTPException(status_code=409, detail=f"Request already {ar.status.value}")
     ar.status = ApprovalStatusEnum.APPROVED
+    # Approve -> execute bridge: an approved autonomous-response request turns
+    # its proposed actions into DeviceCommands the sensor picks up (~30s poll).
+    created_commands = 0
+    try:
+        from app.response.models import DeviceCommand as _DeviceCommand
+
+        ex_result = await db.execute(
+            select(PlaybookExecution).where(
+                PlaybookExecution.id == ar.execution_id,
+                PlaybookExecution.tenant_id == tenant_id,
+            )
+        )
+        execution = ex_result.scalars().first()
+        if execution:
+            ctx = execution.context_data or {}
+            for action in ctx.get("proposed_actions", []) or []:
+                device_id = str(action.get("device_id") or "").strip()
+                name = str(action.get("action") or "").strip()
+                if not device_id or name not in (
+                    "kill_process", "block_ip", "quarantine_file", "remove_persistence"
+                ):
+                    continue
+                db.add(_DeviceCommand(
+                    tenant_id=tenant_id,
+                    device_id=device_id,
+                    action=name,
+                    params=action.get("params") or {},
+                    status="pending",
+                ))
+                created_commands += 1
+    except Exception:
+        logger.error("approval_execute_bridge_failed", approval_id=approval_id, exc_info=True)
     await db.commit()
-    logger.info("approval_approved", approval_id=approval_id, tenant_id=tenant_id)
-    return {"status": "success", "id": ar.id, "new_status": "APPROVED"}
+    logger.info("approval_approved", approval_id=approval_id, tenant_id=tenant_id,
+                commands_created=created_commands)
+    return {"status": "success", "id": ar.id, "new_status": "APPROVED",
+            "commands_created": created_commands}
 
 
 @router.post("/approvals/{approval_id}/reject")

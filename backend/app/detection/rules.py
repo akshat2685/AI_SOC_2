@@ -222,3 +222,104 @@ def match_rules(event: dict, known_hashes: set[str] | None = None) -> list[dict]
         if hit:
             findings.append(hit)
     return findings
+
+
+BRUTE_FORCE_FAILED_THRESHOLD = 20  # failed auth attempts per device per scanned set
+
+
+def match_ioc_rules(event: dict, c2_ips: set, c2_domains: set) -> list[dict]:
+    """Threat-intel rules: flag connections to known C2 infrastructure.
+
+    c2_ips/c2_domains come from the intel feed (CISA KEV + URLhaus +
+    ThreatFox), cached 10 minutes by app.intel.refresh. A hit here is
+    high-confidence: the destination is on a curated malicious list.
+    """
+    if event.get("event_type") != "network" or (not c2_ips and not c2_domains):
+        return []
+    n = _section(event)
+    dst_ip = str(n.get("dst_ip") or "").strip()
+    dst_host = str(n.get("dst_host") or n.get("host") or "").strip().lower()
+    hit_ip = dst_ip in c2_ips if dst_ip else False
+    hit_domain = dst_host in c2_domains if dst_host else False
+    if not (hit_ip or hit_domain):
+        return []
+    matched = dst_ip if hit_ip else dst_host
+    return [{
+        "rule_id": "known-c2-connection",
+        "rule_name": "Connection to known C2 infrastructure",
+        "severity": "HIGH",
+        "confidence": 90,
+        "title": f"Connection to known malicious infrastructure: {matched}",
+        "description": (
+            f"Device {event.get('device_id', 'unknown')} connected to {matched}, "
+            f"which appears in the threat-intel feed as "
+            f"{'a known C2 IP' if hit_ip else 'a known malicious domain'}."
+        ),
+        "fingerprint": _fingerprint("known-c2-connection", event.get("device_id", ""), matched),
+        "evidence": {
+            "dst_ip": dst_ip or None,
+            "dst_host": dst_host or None,
+            "dst_port": n.get("dst_port"),
+            "matched_value": matched,
+            "intel_source": "threat-intel-feed",
+        },
+    }]
+
+
+def match_batch_rules(event_dicts: list[dict]) -> list[dict]:
+    """Aggregate rules over a batch/window of event dicts (not per-event).
+
+    Currently: brute-force-auth — counts failed auth attempts per device and
+    fires HIGH when the count crosses BRUTE_FORCE_FAILED_THRESHOLD. Added
+    because the digital-twin sparring pass proved T1110 brute force (41
+    failed logins/hour) evaded every per-event rule and the anomaly model.
+
+    Findings carry a top-level "device_id"; callers build the synthetic
+    event dict for build_rule_alert as {"id": None, "device_id": ...}.
+    Fingerprints are hourly so a sustained attack re-alerts each hour.
+    """
+    from collections import defaultdict
+
+    failures: dict[str, list[dict]] = defaultdict(list)
+    latest_ts: dict[str, object] = {}
+    for ev in event_dicts:
+        if ev.get("event_type") != "auth":
+            continue
+        a = _section(ev)
+        if a.get("result") not in ("failed", "failure", "denied"):
+            continue
+        device_id = ev.get("device_id") or "unknown"
+        failures[device_id].append(a)
+        ts = ev.get("observed_at")
+        if ts and (device_id not in latest_ts or ts > latest_ts[device_id]):
+            latest_ts[device_id] = ts
+
+    findings = []
+    for device_id, attempts in failures.items():
+        if len(attempts) < BRUTE_FORCE_FAILED_THRESHOLD:
+            continue
+        usernames = sorted({str(a.get("username") or a.get("user") or "?") for a in attempts})
+        ts = latest_ts.get(device_id)
+        hour_key = ts.strftime("%Y-%m-%dT%H") if hasattr(ts, "strftime") else "unknown"
+        user_list = ", ".join(usernames[:5])
+        if len(usernames) > 5:
+            user_list += f", +{len(usernames) - 5} more"
+        findings.append({
+            "rule_id": "brute-force-auth",
+            "rule_name": "Brute-force authentication attempts",
+            "severity": "HIGH",
+            "confidence": 85,
+            "title": f"Brute-force login attempts on {device_id}",
+            "description": (
+                f"{len(attempts)} failed authentication attempts observed for "
+                f"device {device_id} (usernames: {user_list})"
+            ),
+            "fingerprint": _fingerprint("brute-force-auth", device_id, hour_key),
+            "evidence": {
+                "failed_attempts": len(attempts),
+                "usernames": usernames[:20],
+                "hour": hour_key,
+            },
+            "device_id": device_id,
+        })
+    return findings

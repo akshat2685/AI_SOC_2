@@ -22,10 +22,31 @@ async def lifespan(app: FastAPI):
     await run_db_migrations()
     await audit_logger.start()
     scan_task = asyncio.create_task(_detection_scan_loop())
+    intel_task = asyncio.create_task(_intel_refresh_loop())
+    sparring_task = asyncio.create_task(_sparring_loop())
     yield
     scan_task.cancel()
+    intel_task.cancel()
+    sparring_task.cancel()
     await audit_logger.stop()
     logger.info("shutdown", project=settings.PROJECT_NAME)
+
+
+async def _intel_refresh_loop() -> None:
+    """Background threat-intel refresh (CISA KEV + URLhaus + ThreatFox).
+
+    Same lifespan pattern as the detection scan: never raises out.
+    """
+    from app.intel.loop import intel_refresh_loop as _run
+
+    await _run()
+
+
+async def _sparring_loop() -> None:
+    """Background digital-twin sparring: attack the twin daily, learn evasions."""
+    from app.sparring.loop import sparring_loop as _run
+
+    await _run()
 
 
 async def _detection_scan_loop() -> None:
@@ -152,6 +173,16 @@ def create_app() -> FastAPI:
     api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
     api_router.include_router(events.router, prefix="/events", tags=["Security Events"])
     api_router.include_router(detection_api.router, prefix="/detection", tags=["Detection"])
+    from app.intel import api as intel_api
+    from app.sparring import api as sparring_api
+    from app.ml import api_feedback as ml_feedback_api
+    from app.response import api as response_api
+    from app.reports import api as incident_report_api
+    api_router.include_router(intel_api.router, prefix="/intel", tags=["Threat Intel"])
+    api_router.include_router(sparring_api.router, prefix="/sparring", tags=["Digital Twin Sparring"])
+    api_router.include_router(ml_feedback_api.router, tags=["ML"])
+    api_router.include_router(response_api.router, prefix="/agents", tags=["Device Commands"])
+    api_router.include_router(incident_report_api.router, prefix="/incidents", tags=["Incidents"])
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
 

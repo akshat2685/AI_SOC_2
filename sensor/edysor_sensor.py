@@ -51,7 +51,10 @@ import logging
 import os
 import platform
 import re
+import shutil
+import signal
 import socket
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -877,6 +880,260 @@ def send_events(cfg: dict, events: list[dict]) -> tuple[bool, dict]:
 
 
 # --------------------------------------------------------------------------- #
+# Command channel (autonomous response)
+#
+# The backend's response policy can queue DeviceCommands for THIS device
+# (kill a malicious process, block a C2 IP, quarantine a file, remove a
+# persistence mechanism). The sensor polls for them, executes via the safe
+# handlers below, and acks each one with the result.
+#
+# Client-side safety mirrors the backend policy:
+#   - action allowlist enforced before anything runs;
+#   - params must be exact values (no wildcards, no patterns, no paths
+#     where a bare name is expected) — anything else is refused;
+#   - subprocess is NEVER run with shell=True; argv lists only;
+#   - every command runs inside try/except: a bad command is acked as
+#     failed, it can never crash the sensor loop.
+# --------------------------------------------------------------------------- #
+
+COMMAND_ACTIONS = ("kill_process", "block_ip", "quarantine_file", "remove_persistence")
+COMMAND_POLL_SECONDS = 30
+
+_PATTERN_CHARS = ("*", "?", "[", "]")
+
+
+def _run_argv(argv: list[str]) -> tuple[bool, dict]:
+    """Run a fixed argv list (never shell=True). Returns (ok, detail)."""
+    try:
+        proc = subprocess.run(argv, capture_output=True, text=True, timeout=30)
+        detail = {
+            "returncode": proc.returncode,
+            "stdout": (proc.stdout or "")[:2000],
+            "stderr": (proc.stderr or "")[:2000],
+        }
+        return proc.returncode == 0, detail
+    except Exception as exc:
+        return False, {"error": f"exec failed: {exc}"}
+
+
+def _refused(reason: str) -> tuple[bool, dict]:
+    return False, {"error": f"refused: {reason}"}
+
+
+def _handle_kill_process(params: dict) -> tuple[bool, dict]:
+    pid = params.get("pid")
+    name = params.get("name")
+    has_pid = isinstance(pid, int) and pid > 0
+    has_name = (isinstance(name, str) and name
+                and not any(c in name for c in _PATTERN_CHARS)
+                and os.path.basename(name) == name
+                and "\\" not in name and "/" not in name)
+    if not has_pid and not has_name:
+        return _refused("need an exact pid (int) and/or exact process name "
+                        "(no patterns, no paths)")
+    # PID-recycling guard: if both pid and name are given, verify the pid
+    # still belongs to that process before killing. A stale pid must never
+    # kill an innocent process that reused the number.
+    if has_pid and has_name:
+        try:
+            actual = psutil.Process(pid).name()
+            if actual.lower() != name.lower():
+                return _refused(
+                    f"pid {pid} is now {actual!r}, not {name!r} "
+                    f"(pid recycled — kill aborted)")
+        except psutil.NoSuchProcess:
+            return False, {"error": f"pid {pid} no longer exists"}
+        except psutil.AccessDenied:
+            return False, {"error": f"cannot inspect pid {pid} (access denied)"}
+    if sys.platform == "win32":
+        argv = (["taskkill", "/F", "/PID", str(pid)] if has_pid
+                else ["taskkill", "/F", "/IM", name])
+        ok, detail = _run_argv(argv)
+        detail["target"] = params
+        return ok, detail
+    # POSIX fallback: exact only.
+    try:
+        if has_pid:
+            os.kill(pid, signal.SIGKILL)
+            return True, {"target": {"pid": pid}, "method": "SIGKILL"}
+        ok, detail = _run_argv(["pkill", "-x", name])  # -x = exact name match
+        detail["target"] = {"name": name}
+        return ok, detail
+    except ProcessLookupError:
+        return False, {"error": f"no such pid: {pid}"}
+    except PermissionError:
+        return False, {"error": f"permission denied killing pid: {pid}"}
+
+
+def _handle_block_ip(params: dict) -> tuple[bool, dict]:
+    ip = str(params.get("ip") or "")
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return _refused(f"not a valid IP: {ip[:64]!r}")
+    if not addr.is_global:
+        return _refused("only public IPs can be blocked")
+    if sys.platform != "win32":
+        return False, {"error": "block_ip is Windows-only (netsh) on this build"}
+    argv = ["netsh", "advfirewall", "firewall", "add", "rule",
+            f"name=EDYSOR-block-{ip}", "dir=out", "action=block",
+            f"remoteip={ip}"]
+    ok, detail = _run_argv(argv)
+    detail["ip"] = ip
+    return ok, detail
+
+
+def _handle_quarantine_file(params: dict, config_path: Path) -> tuple[bool, dict]:
+    src = params.get("path")
+    if not isinstance(src, str) or not src or any(c in src for c in _PATTERN_CHARS):
+        return _refused("need an exact file path (no wildcards)")
+    p = Path(src)
+    try:
+        resolved = p.resolve()
+    except Exception:
+        return _refused(f"cannot resolve path: {src[:200]}")
+    if not resolved.is_file():
+        return _refused(f"not a file: {src[:200]}")
+    # Never quarantine OS binaries — that way lies a bricked machine.
+    lowered = str(resolved).lower()
+    system_prefixes = (
+        os.environ.get("SystemRoot", r"C:\Windows").lower(),
+        "/bin", "/sbin", "/usr/bin", "/usr/sbin", "/lib", "/usr/lib",
+    )
+    if any(lowered.startswith(sp) for sp in system_prefixes):
+        return _refused("system directory — quarantine blocked for safety")
+    qdir = config_path.parent / "quarantine"
+    qdir.mkdir(parents=True, exist_ok=True)
+    dest = qdir / f"{resolved.name}.{int(time.time())}.quarantined"
+    try:
+        shutil.move(str(resolved), str(dest))
+    except Exception as exc:
+        return False, {"error": f"move failed: {exc}"}
+    return True, {"quarantined_to": str(dest), "original": str(resolved)}
+
+
+def _handle_remove_persistence(params: dict) -> tuple[bool, dict]:
+    if sys.platform != "win32":
+        return False, {"error": "remove_persistence is Windows-only on this build"}
+    task_name = params.get("task_name")
+    if isinstance(task_name, str) and task_name \
+            and not any(c in task_name for c in _PATTERN_CHARS + ("/", "\\")):
+        ok, detail = _run_argv(["schtasks", "/Delete", "/TN", task_name, "/F"])
+        detail["task_name"] = task_name
+        return ok, detail
+    path = params.get("path")
+    if not isinstance(path, str) or not path:
+        return _refused("need exact 'path' (Run-key value) or 'task_name'")
+    # Expected shape: HKCU\Software\Microsoft\Windows\CurrentVersion\Run\<value>
+    # or HKLM\... — delete the exact VALUE, never the key.
+    try:
+        import winreg
+    except ImportError:
+        return False, {"error": "winreg unavailable"}
+    parts = path.split("\\")
+    if len(parts) < 3 or parts[0] not in ("HKCU", "HKLM"):
+        return _refused(f"path is not a Run-key value: {path[:200]}")
+    if "currentversion\\run" not in path.lower():
+        return _refused("only Run/RunOnce persistence values may be removed")
+    value = parts[-1]
+    if not value or any(c in value for c in _PATTERN_CHARS):
+        return _refused("need an exact value name (no wildcards)")
+    root = winreg.HKEY_CURRENT_USER if parts[0] == "HKCU" else winreg.HKEY_LOCAL_MACHINE
+    subkey = "\\".join(parts[1:-1])
+    try:
+        key = winreg.OpenKey(root, subkey, 0, winreg.KEY_SET_VALUE)
+        try:
+            winreg.DeleteValue(key, value)
+        finally:
+            winreg.CloseKey(key)
+    except FileNotFoundError:
+        return False, {"error": f"value already absent: {path[:200]}"}
+    except PermissionError:
+        return False, {"error": "permission denied (run sensor elevated)"}
+    except OSError as exc:
+        return False, {"error": f"registry delete failed: {exc}"}
+    return True, {"removed": path}
+
+
+def _ack_command(cfg: dict, cmd_id: int, ok: bool, result: dict) -> None:
+    url = (cfg["backend_url"].rstrip("/")
+           + f"/api/v1/agents/commands/{cmd_id}/ack")
+    try:
+        resp = requests.post(
+            url,
+            json={"status": "acked" if ok else "failed", "result": result},
+            headers={"X-API-Key": cfg["api_key"]},
+            timeout=30,
+        )
+        if resp.status_code >= 400:
+            log.warning("ack rejected for command %s: HTTP %s", cmd_id,
+                        resp.status_code)
+    except requests.RequestException as exc:
+        log.warning("ack failed for command %s: %s", cmd_id, exc)
+
+
+def _execute_command(cfg: dict, config_path: Path, cmd: dict) -> None:
+    """Execute one command and ack it. Never raises."""
+    cmd_id = cmd.get("id")
+    action = cmd.get("action")
+    params = cmd.get("params") or {}
+    log.info("executing command %s: %s %s", cmd_id, action, params)
+    try:
+        if action not in COMMAND_ACTIONS:
+            _ack_command(cfg, cmd_id, False,
+                         {"error": f"refused: unknown action {action!r}"})
+            return
+        if action == "kill_process":
+            ok, detail = _handle_kill_process(params)
+        elif action == "block_ip":
+            ok, detail = _handle_block_ip(params)
+        elif action == "quarantine_file":
+            ok, detail = _handle_quarantine_file(params, config_path)
+        else:  # remove_persistence
+            ok, detail = _handle_remove_persistence(params)
+        detail["action"] = action
+        _ack_command(cfg, cmd_id, ok, detail)
+        log.info("command %s %s: %s", cmd_id, "ok" if ok else "FAILED", action)
+    except Exception as exc:  # a bad command never kills the sensor
+        log.exception("command %s crashed during execution", cmd_id)
+        try:
+            _ack_command(cfg, cmd_id, False, {"error": f"handler crashed: {exc}"})
+        except Exception:
+            pass
+
+
+def poll_commands(cfg: dict, config_path: Path) -> None:
+    """Fetch pending commands for this device and execute them. Never raises."""
+    device_id = cfg.get("device_id")
+    if not device_id:
+        return
+    url = (cfg["backend_url"].rstrip("/")
+           + f"/api/v1/agents/{device_id}/commands")
+    try:
+        resp = requests.get(
+            url, headers={"X-API-Key": cfg["api_key"]}, timeout=30)
+    except requests.RequestException as exc:
+        log.warning("command poll failed: %s", exc)
+        return
+    if resp.status_code == 404:
+        log.warning("command poll: agent not found on backend")
+        return
+    if resp.status_code >= 400:
+        log.warning("command poll rejected: HTTP %s", resp.status_code)
+        return
+    try:
+        data = resp.json()
+    except ValueError:
+        log.warning("command poll: invalid JSON response")
+        return
+    commands = data.get("commands") or []
+    if commands:
+        log.info("received %d command(s)", len(commands))
+    for cmd in commands:
+        _execute_command(cfg, config_path, cmd)
+
+
+# --------------------------------------------------------------------------- #
 # Main loop
 # --------------------------------------------------------------------------- #
 
@@ -990,9 +1247,19 @@ def main() -> int:
         return 0
 
     log.info("sensor starting (interval %ds, spool %s)", interval, spool_path)
+    last_cmd_poll = 0.0
     try:
         while True:
             run_cycle(state, cfg, config_path, spool_path)
+            # Command channel: poll for response actions every 30s.
+            # Wrapped so a poll failure never stops collection.
+            now_mono = time.monotonic()
+            if now_mono - last_cmd_poll >= COMMAND_POLL_SECONDS:
+                last_cmd_poll = now_mono
+                try:
+                    poll_commands(cfg, config_path)
+                except Exception:
+                    log.exception("command poll crashed (sensor survives)")
             time.sleep(interval)
     except KeyboardInterrupt:
         log.info("stopped by user")

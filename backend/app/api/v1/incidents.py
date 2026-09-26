@@ -98,6 +98,20 @@ async def update_incident(
 
     await db.commit()
     await db.refresh(incident)
+    # Self-learning: a resolved incident with a verdict becomes labeled
+    # training data. TP -> attack samples, FP -> benign samples. Never raises.
+    try:
+        status_val = str(incident.status.value if incident.status else "")
+        verdict_val = str(incident.verdict or "").upper()
+        if status_val in ("RESOLVED", "CLOSED") and verdict_val in ("TRUE_POSITIVE", "FALSE_POSITIVE"):
+            from app.ml.feedback import record_incident_feedback as _record_fb
+
+            await _record_fb(db, id, verdict_val)
+            await db.commit()
+    except Exception:
+        from app.core.logger import logger as _logger
+
+        _logger.error("incident_feedback_failed", incident_id=id, exc_info=True)
     return {"status": "success", "incident": _incident_to_dict(incident)}
 
 

@@ -18,8 +18,8 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 _ART = os.path.join(_DIR, "artifacts")
 
 MODEL_VERSION = "attack-grounded-v3"
-TRAINED_ON = "synthetic-soc-telemetry-v1"
-WARNING = "Models trained on synthetic telemetry v1 — retrain on real tenant data before production use."
+TRAINED_ON = "attack-grounded-synthetic-v3 (24 ATT&CK techniques + 5 device archetypes, seed 42)"
+WARNING = "Models trained on ATT&CK-grounded synthetic telemetry v3 — retrain on real labeled tenant data before production use."
 ZERO_DAY_NOTE = (
     "The anomaly detector is the 0-day signal: it was fit on benign-only traffic and flags "
     "behavioral deviations, not signatures. The classifier only recognizes attack patterns "

@@ -136,6 +136,31 @@ def _event_to_dict(e: SecurityEvent) -> dict:
     }
 
 
+def build_rule_alert(tenant_id: int, ev: dict, finding: dict) -> Alert:
+    """Build an Alert row from one rule finding. Shared by the batch scan
+    (scan_tenant) and the ingest-time realtime scorer (realtime.py) so both
+    write alerts identically — same fingerprint space, same evidence shape,
+    one dedup story."""
+    fp = finding["fingerprint"]
+    return Alert(
+        tenant_id=tenant_id,
+        source="detection-engine",
+        rule_name=finding["rule_name"],
+        description=finding["description"],
+        severity=finding["severity"],
+        confidence=finding["confidence"],
+        device_id=ev["device_id"],
+        rule_id=finding["rule_id"],
+        evidence={
+            **finding["evidence"],
+            "fingerprint": fp,
+            "detector": rules_mod.RULES_VERSION,
+            "engine": ENGINE_VERSION,
+            "event_id": ev["id"],
+        },
+    )
+
+
 async def scan_tenant(db: AsyncSession, tenant_id: int, lookback_hours: int | None = None) -> dict:
     """Run one detection pass for a tenant. Returns a summary dict.
 
@@ -172,6 +197,18 @@ async def scan_tenant(db: AsyncSession, tenant_id: int, lookback_hours: int | No
     new_alerts: list[Alert] = []
     max_observed = since
 
+    # Known-C2 sets from the threat-intel feed (cached 10 min; empty until
+    # the first refresh lands — never let intel break detection).
+    try:
+        from app.intel.refresh import get_c2_domains as _c2_domains
+        from app.intel.refresh import get_c2_ips as _c2_ips
+
+        c2_ips = await _c2_ips(db)
+        c2_domains = await _c2_domains(db)
+    except Exception:
+        logger.warning("intel_c2_lookup_failed", exc_info=True)
+        c2_ips, c2_domains = set(), set()
+
     # --- rule pass ---
     for ev in event_dicts:
         if ev["observed_at"] and ev["observed_at"] > max_observed:
@@ -182,25 +219,29 @@ async def scan_tenant(db: AsyncSession, tenant_id: int, lookback_hours: int | No
                 continue
             seen_fps.add(fp)
             rules_fired[finding["rule_id"]] += 1
-            alert = Alert(
-                tenant_id=tenant_id,
-                source="detection-engine",
-                rule_name=finding["rule_name"],
-                description=finding["description"],
-                severity=finding["severity"],
-                confidence=finding["confidence"],
-                device_id=ev["device_id"],
-                rule_id=finding["rule_id"],
-                evidence={
-                    **finding["evidence"],
-                    "fingerprint": fp,
-                    "detector": rules_mod.RULES_VERSION,
-                    "engine": ENGINE_VERSION,
-                    "event_id": ev["id"],
-                },
-            )
+            alert = build_rule_alert(tenant_id, ev, finding)
             db.add(alert)
             new_alerts.append(alert)
+        for finding in rules_mod.match_ioc_rules(ev, c2_ips, c2_domains):
+            fp = finding["fingerprint"]
+            if fp in seen_fps:
+                continue
+            seen_fps.add(fp)
+            rules_fired[finding["rule_id"]] += 1
+            alert = build_rule_alert(tenant_id, ev, finding)
+            db.add(alert)
+            new_alerts.append(alert)
+
+    # --- batch rule pass (aggregate signals: brute-force-auth) ---
+    for finding in rules_mod.match_batch_rules(event_dicts):
+        fp = finding["fingerprint"]
+        if fp in seen_fps:
+            continue
+        seen_fps.add(fp)
+        rules_fired[finding["rule_id"]] += 1
+        alert = build_rule_alert(tenant_id, {"id": None, "device_id": finding["device_id"]}, finding)
+        db.add(alert)
+        new_alerts.append(alert)
 
     # --- anomaly pass (per device-hour aggregates) ---
     anomaly_fired = 0
