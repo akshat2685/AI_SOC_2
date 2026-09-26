@@ -257,12 +257,20 @@ async def run_intel_pass(
     results: list[dict] = []
     training_rows: list[dict] = []
     for sc in scenarios:
-        score = _score_events(sc["events"])
+        try:
+            score = _score_events(sc["events"])
+        except Exception:
+            # Same containment as the background loop: one bad scenario
+            # must not fail the whole pass.
+            continue
         analysis: dict = {}
         if not score.get("detected"):
-            analysis = defense_mod.analyze_outcome(
-                sc, score, await _intel_state(db, sc))
-            row = _evasion_row(sc.get("technique_id") or "unknown", sc["events"])
+            try:
+                analysis = defense_mod.analyze_outcome(
+                    sc, score, await _intel_state(db, sc))
+                row = _evasion_row(sc.get("technique_id") or "unknown", sc["events"])
+            except Exception:
+                continue
             if row:
                 training_rows.append({
                     "feature_vector": row["features"],
