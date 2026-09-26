@@ -223,19 +223,28 @@ def _technique_summary(t: dict) -> dict:
 
 @router.get("/mitre/mappings")
 async def get_mitre_mappings(
+    limit: int = Query(100, ge=1, le=697, description="Page size (use with offset)"),
+    offset: int = Query(0, ge=0, description="Skip first N techniques"),
     _auth=Depends(require_roles_dual(READ_ROLES)),
 ):
     """Full MITRE ATT&CK Enterprise dataset + rule-pattern mappings.
 
     Techniques come from the bundled live pull of MITRE CTI
     (backend/app/data/attack_enterprise.json), not a hand-curated subset.
+    Paginated: the full 697-technique payload is ~480KB, which is flaky
+    over HTTP/1.1 through the CDN — page it instead of fetching all at once.
     """
     data = _attack_data()
     techniques = [_technique_summary(t) for t in data["techniques"]]
+    total = len(techniques)
+    page = techniques[offset:offset + limit]
     return {
-        "techniques": techniques,
+        "techniques": page,
         "rule_mappings": RULE_MAPPINGS,
-        "count": len(techniques),
+        "count": len(page),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
         "source": data.get("source", "mitre-cti"),
         "retrieved_at": data.get("retrieved_at"),
         "note": ("Full MITRE ATT&CK Enterprise dataset (techniques incl. "
