@@ -123,7 +123,9 @@ def load_config(path: Path) -> dict:
     }
     if path.exists():
         try:
-            loaded = json.loads(path.read_text())
+            # utf-8-sig tolerates the BOM that Windows PowerShell's
+            # Set-Content -Encoding utf8 writes; plain utf-8 would choke.
+            loaded = json.loads(path.read_text(encoding="utf-8-sig"))
             if isinstance(loaded, dict):
                 cfg.update(loaded)
         except (OSError, json.JSONDecodeError) as exc:
@@ -135,7 +137,7 @@ def save_config(path: Path, cfg: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Config holds an API key: restrict permissions.
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(cfg, indent=2))
+    tmp.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     os.chmod(tmp, 0o600)
     tmp.replace(path)
 
