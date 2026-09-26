@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, Text, Enum, JSON, Boolean, Uuid, Time
+from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, Text, Enum, JSON, Boolean, Uuid, Time, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 import enum
@@ -74,6 +74,7 @@ class Tenant(Base):
     integrations: Mapped[List["Integration"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     endpoint_agents: Mapped[List["EndpointAgent"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     onboarding_state: Mapped[Optional["OnboardingState"]] = relationship(back_populates="tenant", cascade="all, delete-orphan", uselist=False)
+    security_events: Mapped[List["SecurityEvent"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 class User(Base):
     __tablename__ = "users"
 
@@ -439,6 +440,7 @@ class EndpointAgent(Base):
         Enum(AgentStatus, native_enum=False), default=AgentStatus.UNREGISTERED
     )
     last_heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -457,3 +459,47 @@ class OnboardingState(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     tenant: Mapped[Tenant] = relationship(back_populates="onboarding_state", uselist=False)
+
+
+class EventType(str, enum.Enum):
+    PROCESS = "process"
+    NETWORK = "network"
+    FILE = "file"
+    AUTH = "auth"
+    DNS = "dns"
+
+
+class SeverityHint(str, enum.Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class SecurityEvent(Base):
+    """A normalized security telemetry event from an endpoint agent.
+
+    One row per observed event, in a single OS-agnostic schema: the
+    `event_type` selects which typed section lives in `payload`
+    (process / network / file / auth / dns). `raw` holds the sensor's
+    untouched original record for forensics. Nothing is enriched or
+    invented here — what the sensor sent is what is stored.
+    """
+    __tablename__ = "security_events"
+    __table_args__ = (
+        Index("ix_security_events_tenant_observed", "tenant_id", "observed_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
+    device_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    event_type: Mapped[EventType] = mapped_column(Enum(EventType, native_enum=False))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    severity_hint: Mapped[SeverityHint] = mapped_column(
+        Enum(SeverityHint, native_enum=False), default=SeverityHint.INFO
+    )
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    raw: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    tenant: Mapped[Tenant] = relationship(back_populates="security_events")

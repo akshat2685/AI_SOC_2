@@ -71,28 +71,35 @@ function installSnippet(platform: string): string {
   if (platform === 'windows') {
     return [
       '$env:EDYSOR_URL="' + base + '"',
-      '$env:EDYSOR_AGENT_TOKEN="<paste-agent-token>"',
+      '$env:EDYSOR_API_KEY="<paste-api-key>"  # Settings -> API Keys (sent as X-API-Key header)',
       '',
-      '# Working registration flow: registers this device and returns a device_id.',
-      '# The full telemetry agent binary ships in a later release.',
+      '# Register this device via the live /agents/register endpoint.',
+      '# The Windows telemetry sensor ships in a later release.',
       'Invoke-RestMethod -Method Post `',
       '  -Uri "$env:EDYSOR_URL/api/v1/agents/register" `',
-      '  -Headers @{Authorization="Bearer $env:EDYSOR_AGENT_TOKEN"} `',
+      '  -Headers @{"X-API-Key"=$env:EDYSOR_API_KEY} `',
       '  -ContentType "application/json" `',
       '  -Body (@{hostname=$env:COMPUTERNAME; platform="windows"; `',
       '    os_version=(Get-CimInstance Win32_OperatingSystem).Version; `',
       '    arch=$env:PROCESSOR_ARCHITECTURE; agent_version="0.1.0"} | ConvertTo-Json)',
     ].join('\n');
   }
+  // Linux/macOS: the real reference sensor (sensor/edysor_sensor.py).
   return [
-    'EDYSOR_URL="' + base + '" EDYSOR_AGENT_TOKEN="<paste-agent-token>"',
+    '# EDYSOR sensor — review before running.',
+    'set -e',
+    'mkdir -p ~/.local/share/edysor-sensor && cd ~/.local/share/edysor-sensor',
+    'curl -fsSL -O https://raw.githubusercontent.com/akshat2685/AI_SOC_2/mvp-live/sensor/edysor_sensor.py',
+    'curl -fsSL -O https://raw.githubusercontent.com/akshat2685/AI_SOC_2/mvp-live/sensor/requirements.txt',
+    'python3 -m pip install -r requirements.txt',
     '',
-    '# Working registration flow: registers this device and returns a device_id.',
-    '# The full telemetry agent binary ships in a later release.',
-    'curl -s -X POST "$EDYSOR_URL/api/v1/agents/register" \\',
-    '  -H "Authorization: Bearer $EDYSOR_AGENT_TOKEN" \\',
-    '  -H "Content-Type: application/json" \\',
-    '  -d "{\\"hostname\\":\\"$(hostname)\\",\\"platform\\":\\"' + platform + '\\",\\"os_version\\":\\"$(uname -r)\\",\\"arch\\":\\"$(uname -m)\\",\\"agent_version\\":\\"0.1.0\\"}"',
+    '# 1. Create an API key in the product: Settings -> API Keys.',
+    '#    The sensor sends it in the X-API-Key header.',
+    '# 2. Write ~/.config/edysor/sensor.json (chmod 600):',
+    '#      {"backend_url": "' + base + '", "api_key": "<paste-api-key>", "interval_seconds": 30}',
+    '# 3. Test:  python3 edysor_sensor.py --once',
+    '# 4. Run:   nohup python3 edysor_sensor.py >/tmp/edysor-sensor.log 2>&1 &',
+    '# First run registers the device and prints its device_id.',
   ].join('\n');
 }
 
@@ -507,7 +514,7 @@ function EndpointsStep({ agents, regHost, setRegHost, regOs, setRegOs, regResult
                       {copied === os.key ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500">Paste an agent API token where indicated. Registers the device via the live <span className="font-mono">/agents/register</span> endpoint.</p>
+                  <p className="text-[10px] text-slate-500">Create an API key under Settings → API Keys and paste it where indicated (sent as <span className="font-mono">X-API-Key</span> header). Linux/macOS installs the real telemetry sensor; Windows registers the device via the live <span className="font-mono">/agents/register</span> endpoint.</p>
                 </div>
               )}
 

@@ -1,0 +1,3 @@
+# EDYSOR reference endpoint sensor
+psutil>=5.9
+requests>=2.28

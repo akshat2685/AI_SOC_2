@@ -1,0 +1,42 @@
+# EDYSOR sensor — install snippet (reference)
+
+# Shown by the EDYSOR onboarding wizard as the Linux/macOS "Download agent"
+# bootstrap. REVIEW BEFORE RUNNING. Downloads the reference sensor from the
+# AI_SOC_2 repo, installs its two Python dependencies, and prints next steps.
+# Nothing is executed with elevated privileges by this snippet itself.
+
+set -e
+mkdir -p ~/.local/share/edysor-sensor
+cd ~/.local/share/edysor-sensor
+curl -fsSL -O https://raw.githubusercontent.com/akshat2685/AI_SOC_2/mvp-live/sensor/edysor_sensor.py
+curl -fsSL -O https://raw.githubusercontent.com/akshat2685/AI_SOC_2/mvp-live/sensor/requirements.txt
+python3 -m pip install -r requirements.txt
+
+cat <<'EOF'
+
+EDYSOR sensor downloaded. Next steps:
+
+  1. In the EDYSOR product, go to Settings -> API Keys and create a key.
+     The sensor sends it in the X-API-Key header (never in chat/logs).
+
+  2. Create ~/.config/edysor/sensor.json with:
+       {
+         "backend_url": "https://aisoc2-backend.onrender.com",
+         "api_key": "PASTE-YOUR-KEY-HERE",
+         "interval_seconds": 30
+       }
+     (chmod 600 the file — it holds a secret.)
+
+  3. Test it:
+       python3 edysor_sensor.py --once
+
+  4. Run it persistently (Linux):
+       sudo cp edysor-sensor.service /etc/systemd/system/
+       sudo systemctl enable --now edysor-sensor
+     Or on macOS, run in the background:
+       nohup python3 edysor_sensor.py >/tmp/edysor-sensor.log 2>&1 &
+
+  First run registers the device automatically and prints its device_id.
+  If the backend is unreachable, events spool locally to
+  ~/.config/edysor/spool.jsonl and are retried — nothing is silently dropped.
+EOF
