@@ -159,7 +159,13 @@ def register_device(cfg: dict, config_path: Path) -> bool:
                   resp.text[:300])
         return False
     try:
-        device_id = resp.json()["device_id"]
+        body = resp.json()
+        # Backend returns {"device_identity": {"device_id": ...}, "note": ...};
+        # accept a flat {"device_id": ...} too for forward-compat.
+        device_id = (body.get("device_identity") or {}).get("device_id") \
+            or body.get("device_id")
+        if not device_id:
+            raise KeyError("device_id")
     except (ValueError, KeyError) as exc:
         log.error("registration failed: unexpected response (%s): %s",
                   exc, resp.text[:300])
