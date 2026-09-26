@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
+import re
 
 from app.infrastructure.database import get_db
 from app.domain.models import User, Tenant, RoleEnum
@@ -9,6 +10,10 @@ from app.core.security import verify_password, get_password_hash, create_access_
 from app.api.middleware.rate_limit_middleware import limiter
 
 router = APIRouter()
+
+# The login identity is stored in User.email — registration requires a real
+# email shape so the "Email" label on the login form is honest.
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class LoginRequest(BaseModel):
     username: str
@@ -46,6 +51,8 @@ async def login(request: Request, req_body: LoginRequest, db: AsyncSession = Dep
 @router.post("/register")
 @limiter.limit("3/minute")
 async def register(request: Request, req_body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+    if not EMAIL_RE.match((req_body.username or "").strip()):
+        raise HTTPException(status_code=400, detail="Please provide a valid email address")
     tenant_result = await db.execute(select(Tenant).where(Tenant.name == "default"))
     tenant = tenant_result.scalars().first()
     if not tenant:
@@ -56,7 +63,7 @@ async def register(request: Request, req_body: RegisterRequest, db: AsyncSession
 
     user_result = await db.execute(select(User).where(User.email == req_body.username))
     if user_result.scalars().first():
-        raise HTTPException(status_code=400, detail="Username already exists")
+        raise HTTPException(status_code=400, detail="An account with this email already exists")
 
     new_user = User(
         email=req_body.username,

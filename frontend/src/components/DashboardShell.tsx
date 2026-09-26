@@ -48,8 +48,8 @@ export default function DashboardShell({ children }: ShellProps) {
     logout
   } = useStore();
 
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -151,7 +151,11 @@ export default function DashboardShell({ children }: ShellProps) {
     setLoading(true);
     try {
       if (isRegistering) {
-        // Register flow
+        // Register flow — the identity is stored as the user's email.
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(username.trim())) {
+          setLoginError('Please enter a valid email address.');
+          return;
+        }
         const regRes = await api.register(username, password);
         // After successful registration, auto-login
         const res = await api.login(username, password);
@@ -209,12 +213,14 @@ export default function DashboardShell({ children }: ShellProps) {
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Username</label>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Email</label>
               <input
-                type="text"
+                type="email"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/80 transition-all text-white"
+                placeholder="you@company.com"
+                autoComplete="email"
+                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/80 transition-all text-white placeholder:text-slate-600"
                 required
               />
             </div>
@@ -224,7 +230,9 @@ export default function DashboardShell({ children }: ShellProps) {
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/80 transition-all text-white"
+                placeholder={isRegistering ? 'Choose a strong password' : 'Enter your password'}
+                autoComplete={isRegistering ? 'new-password' : 'current-password'}
+                className="w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-500/80 transition-all text-white placeholder:text-slate-600"
                 required
               />
             </div>
