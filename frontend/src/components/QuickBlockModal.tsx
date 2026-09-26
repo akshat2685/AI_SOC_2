@@ -83,7 +83,7 @@ export default function QuickBlockModal({
       {/* Modal Container */}
       <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         {/* Banner strip */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-orange-500 to-red-600"></div>
+        <div className="absolute top-0 left-0 w-full h-1 bg-red-600"></div>
         
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
@@ -121,8 +121,8 @@ export default function QuickBlockModal({
           ) : (
             <>
               {/* Target IP Info */}
-              <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 flex items-center gap-3">
-                <div className="p-2.5 bg-red-950/40 border border-red-800/30 text-red-400 rounded-xl">
+              <div className="bg-slate-950/80 border border-[#1c2530] rounded-md p-4 flex items-center gap-3">
+                <div className="p-2.5 bg-red-950/40 border border-red-800/30 text-red-400 rounded-md">
                   <Lock className="w-4 h-4" />
                 </div>
                 <div>
@@ -138,7 +138,7 @@ export default function QuickBlockModal({
                   <button
                     type="button"
                     onClick={() => setBlockType('temporary')}
-                    className={`p-3 rounded-xl border text-xs font-semibold text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                    className={`p-3 rounded-md border text-xs font-semibold text-center transition-all flex flex-col items-center justify-center gap-1 ${
                       blockType === 'temporary'
                         ? 'bg-orange-500/10 border-orange-500/50 text-orange-400'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
@@ -150,7 +150,7 @@ export default function QuickBlockModal({
                   <button
                     type="button"
                     onClick={() => setBlockType('permanent')}
-                    className={`p-3 rounded-xl border text-xs font-semibold text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                    className={`p-3 rounded-md border text-xs font-semibold text-center transition-all flex flex-col items-center justify-center gap-1 ${
                       blockType === 'permanent'
                         ? 'bg-red-500/10 border-red-500/50 text-red-400'
                         : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
@@ -197,12 +197,12 @@ export default function QuickBlockModal({
                   value={reason}
                   onChange={e => setReason(e.target.value)}
                   placeholder="Enter custom enforcement reason..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-red-500/50 placeholder:text-slate-600"
+                  className="w-full bg-slate-950 border border-[#1c2530] rounded-md px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-red-500/50 placeholder:text-slate-600"
                 />
               </div>
 
               {/* Warning Notice */}
-              <div className="bg-red-950/20 border border-red-900/20 rounded-xl p-3 flex items-start gap-2.5">
+              <div className="bg-red-950/20 border border-red-900/20 rounded-md p-3 flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                 <p className="text-[10px] text-red-400/90 leading-normal">
                   <strong>Warning:</strong> Applying this rule will dynamically push policy rules to the virtual SIEM & VPC routing filters, blacklisting inbound packets immediately.
@@ -210,7 +210,7 @@ export default function QuickBlockModal({
               </div>
 
               {error && (
-                <div className="bg-red-950/40 border border-red-800/80 text-red-400 text-[10px] px-3.5 py-2.5 rounded-xl">
+                <div className="bg-red-950/40 border border-red-800/80 text-red-400 text-[10px] px-3.5 py-2.5 rounded-md">
                   {error}
                 </div>
               )}
@@ -220,7 +220,7 @@ export default function QuickBlockModal({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold py-2.5 rounded-xl text-xs transition-all"
+                  className="flex-1 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 font-semibold py-2.5 rounded-md text-xs transition-all"
                 >
                   Cancel
                 </button>
@@ -228,7 +228,7 @@ export default function QuickBlockModal({
                   type="button"
                   onClick={handleBlock}
                   disabled={loading}
-                  className="flex-1 bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 disabled:opacity-50 text-white font-semibold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-red-900/10 active:scale-[0.98]"
+                  className="flex-1 bg-red-700 hover:bg-red-600 disabled:opacity-50 text-white font-semibold py-2.5 rounded-md text-xs transition-all flex items-center justify-center gap-1.5 active:scale-[0.98]"
                 >
                   {loading ? (
                     <>

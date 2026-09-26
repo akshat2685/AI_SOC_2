@@ -35,7 +35,7 @@ function sevBadge(sev: string) {
   if (s === 'CRITICAL') return 'bg-red-950/40 text-red-400 border-red-800/30';
   if (s === 'HIGH') return 'bg-orange-950/40 text-orange-400 border-orange-800/30';
   if (s === 'MEDIUM') return 'bg-amber-950/40 text-amber-400 border-amber-800/30';
-  return 'bg-blue-950/40 text-blue-400 border-blue-800/30';
+  return 'bg-slate-800/40 text-slate-400 border-slate-700/40';
 }
 
 export default function SOCCommandCenter() {
@@ -143,7 +143,7 @@ export default function SOCCommandCenter() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sky-500" />
       </div>
     );
   }
@@ -153,7 +153,7 @@ export default function SOCCommandCenter() {
     { label: 'Critical', value: posture.critical, icon: AlertTriangle, ring: 'border-red-500/30', text: 'text-red-400' },
     { label: 'High', value: posture.high, icon: AlertTriangle, ring: 'border-orange-500/30', text: 'text-orange-400' },
     { label: 'Medium', value: posture.medium, icon: AlertTriangle, ring: 'border-amber-500/30', text: 'text-amber-400' },
-    { label: 'Low', value: posture.low, icon: AlertTriangle, ring: 'border-blue-500/30', text: 'text-blue-400' },
+    { label: 'Low', value: posture.low, icon: AlertTriangle, ring: 'border-[#243041]', text: 'text-slate-400' },
   ];
 
   return (
@@ -161,11 +161,11 @@ export default function SOCCommandCenter() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-blue-400" />
+          <div className="w-10 h-10 rounded-md bg-[#131a23] border border-[#243041] flex items-center justify-center">
+            <Shield className="w-5 h-5 text-sky-400" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">SOC Command Center</h2>
+            <h2 className="text-lg font-bold text-slate-100">SOC Command Center</h2>
             <p className="text-xs text-slate-500">
               Live security posture, fleet health, and AI activity
               {data?.derived && <span className="text-slate-600"> · assembled from live endpoints</span>}
@@ -174,7 +174,7 @@ export default function SOCCommandCenter() {
         </div>
         <button
           onClick={load}
-          className="flex items-center gap-1.5 text-xs font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 px-3 py-2 rounded-lg transition-all"
+          className="flex items-center gap-1.5 text-xs font-semibold bg-[#0e1319] hover:bg-[#111722] border border-[#1c2530] text-slate-300 px-3 py-2 rounded-md transition-colors"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           Refresh
@@ -182,7 +182,7 @@ export default function SOCCommandCenter() {
       </div>
 
       {error && (
-        <div className="bg-red-950/30 border border-red-800/40 rounded-xl p-4 text-xs text-red-300">
+        <div className="bg-red-950/30 border border-red-900/50 rounded-md p-4 text-xs text-red-300">
           {error}
         </div>
       )}
@@ -197,10 +197,10 @@ export default function SOCCommandCenter() {
               <button
                 key={c.label}
                 onClick={() => setActivePage('incidents')}
-                className={`bg-slate-900/60 border ${c.ring} rounded-xl p-4 text-left hover:bg-slate-900 transition-all`}
+                className={`bg-slate-900/60 border ${c.ring} rounded-md p-4 text-left hover:bg-[#111722] transition-colors`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{c.label} Incidents</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{c.label} Incidents</span>
                   <Icon className={`w-4 h-4 ${c.text}`} />
                 </div>
                 <p className={`text-2xl font-bold font-mono mt-2 ${c.text}`}>{c.value}</p>
@@ -209,10 +209,10 @@ export default function SOCCommandCenter() {
           })}
           <button
             onClick={() => setActivePage('incidents')}
-            className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-left hover:bg-slate-900 transition-all"
+            className="bg-[#0e1319] border border-[#1c2530] rounded-md p-4 text-left hover:bg-slate-900 transition-all"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Alerts</span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Alerts</span>
               <Radio className="w-4 h-4 text-slate-400" />
             </div>
             <p className="text-2xl font-bold font-mono mt-2 text-slate-200">{data?.alerts.total ?? 0}</p>
@@ -223,10 +223,10 @@ export default function SOCCommandCenter() {
 
       {/* Row 2 — Endpoint + integration health */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
+        <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-5">
           <div className="flex items-center gap-2 mb-4">
             <MonitorSmartphone className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Endpoint Health</h3>
+            <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.14em]">Endpoint Health</h3>
           </div>
           {data?.agents ? (
             <div className="grid grid-cols-4 gap-2 text-center">
@@ -236,14 +236,14 @@ export default function SOCCommandCenter() {
                 { label: 'Offline', value: data.agents.offline, cls: 'text-red-400' },
                 { label: 'Total', value: data.agents.total, cls: 'text-slate-200' },
               ].map((s) => (
-                <div key={s.label} className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+                <div key={s.label} className="bg-[#090c11] border border-[#1c2530] rounded-md p-3">
                   <p className={`text-xl font-bold font-mono ${s.cls}`}>{s.value}</p>
-                  <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-1">{s.label}</p>
+                  <p className="text-[9px] text-slate-600 uppercase tracking-[0.12em] mt-1">{s.label}</p>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="flex items-center gap-3 bg-slate-950/60 border border-dashed border-slate-800 rounded-lg p-4">
+            <div className="flex items-center gap-3 bg-[#090c11] border border-dashed border-[#243041] rounded-md p-4">
               <Unplug className="w-5 h-5 text-slate-600 flex-shrink-0" />
               <p className="text-[11px] text-slate-500">
                 No endpoint agents connected. Agent telemetry appears here once the EDYSOR endpoint agent is deployed.
@@ -252,10 +252,10 @@ export default function SOCCommandCenter() {
           )}
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
+        <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Plug className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Integration Health</h3>
+            <Plug className="w-4 h-4 text-sky-400" />
+            <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.14em]">Integration Health</h3>
           </div>
           <div className="grid grid-cols-4 gap-2 text-center">
             {[
@@ -264,9 +264,9 @@ export default function SOCCommandCenter() {
               { label: 'Down', value: data?.integrations.disconnected ?? 0, cls: 'text-red-400' },
               { label: 'Total', value: data?.integrations.total ?? 0, cls: 'text-slate-200' },
             ].map((s) => (
-              <div key={s.label} className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+              <div key={s.label} className="bg-[#090c11] border border-[#1c2530] rounded-md p-3">
                 <p className={`text-xl font-bold font-mono ${s.cls}`}>{s.value}</p>
-                <p className="text-[9px] text-slate-500 uppercase tracking-wider mt-1">{s.label}</p>
+                <p className="text-[9px] text-slate-600 uppercase tracking-[0.12em] mt-1">{s.label}</p>
               </div>
             ))}
           </div>
@@ -275,9 +275,9 @@ export default function SOCCommandCenter() {
 
       {/* Connect-your-environment CTA */}
       {(data?.integrations.total ?? 0) === 0 && (
-        <div className="bg-gradient-to-r from-blue-950/40 to-indigo-950/40 border border-blue-800/30 rounded-xl p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-bold text-white">Connect your environment</h3>
+            <h3 className="text-sm font-semibold text-slate-100">Connect your environment</h3>
             <p className="text-xs text-slate-400 mt-1 max-w-xl">
               No integrations connected yet. Connect endpoints, SIEM, EDR, firewall, identity, or cloud sources
               so EDYSOR can discover assets and start monitoring.
@@ -285,7 +285,7 @@ export default function SOCCommandCenter() {
           </div>
           <button
             onClick={() => setActivePage('settings')}
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-lg transition-all flex-shrink-0"
+            className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold px-4 py-2.5 rounded-md transition-colors flex-shrink-0"
           >
             <Plug className="w-4 h-4" />
             Open Integrations
@@ -296,15 +296,15 @@ export default function SOCCommandCenter() {
 
       {/* Row 3 — Active investigations + AI activity */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
+        <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-400" />
-              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Active Investigations</h3>
+              <Clock className="w-4 h-4 text-sky-400" />
+              <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.14em]">Active Investigations</h3>
             </div>
             <button
               onClick={() => setActivePage('incidents')}
-              className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-0.5"
+              className="text-[10px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-0.5"
             >
               View all <ChevronRight className="w-3 h-3" />
             </button>
@@ -320,10 +320,10 @@ export default function SOCCommandCenter() {
                 <button
                   key={inc.id}
                   onClick={() => setActivePage('incidents')}
-                  className="w-full flex items-center justify-between gap-3 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2.5 hover:border-slate-700 transition-all text-left"
+                  className="w-full flex items-center justify-between gap-3 bg-[#090c11] border border-[#1c2530] rounded-md px-3 py-2.5 hover:border-[#243041] transition-colors text-left"
                 >
                   <span className="text-[11px] font-semibold text-slate-200 truncate">{inc.title}</span>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${sevBadge(inc.severity)}`}>
+                  <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border flex-shrink-0 ${sevBadge(inc.severity)}`}>
                     {inc.severity}
                   </span>
                 </button>
@@ -332,23 +332,23 @@ export default function SOCCommandCenter() {
           )}
         </div>
 
-        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-5">
+        <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Brain className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">AI Activity</h3>
+            <Brain className="w-4 h-4 text-sky-400" />
+            <h3 className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.14em]">AI Activity</h3>
           </div>
           <div className="space-y-3">
             <button
               onClick={() => setActivePage('approvals')}
-              className="w-full flex items-center justify-between bg-slate-950/60 border border-slate-800 rounded-lg px-4 py-3 hover:border-slate-700 transition-all"
+              className="w-full flex items-center justify-between bg-[#090c11] border border-[#1c2530] rounded-md px-4 py-3 hover:border-[#243041] transition-colors"
             >
               <span className="text-[11px] font-semibold text-slate-300">Response actions awaiting approval</span>
               <span className={`text-sm font-bold font-mono ${(data?.approvals_pending ?? 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
                 {data?.approvals_pending ?? 0}
               </span>
             </button>
-            <div className="flex items-start gap-2.5 bg-indigo-950/20 border border-indigo-900/30 rounded-lg px-4 py-3">
-              <Sparkles className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2.5 bg-[#090c11] border border-[#1c2530] rounded-md px-4 py-3">
+              <Sparkles className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Ask the copilot anything about an incident — <span className="text-slate-300 font-semibold">"What happened?"</span>,{' '}
                 <span className="text-slate-300 font-semibold">"Show the attack path"</span> — from the chat button in the bottom-right.

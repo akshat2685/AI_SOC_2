@@ -47,7 +47,7 @@ function getSeverityColor(severity: string): string {
   if (s === 'CRITICAL') return 'bg-red-950/40 text-red-400 border-red-800/30';
   if (s === 'HIGH') return 'bg-orange-950/40 text-orange-400 border-orange-800/30';
   if (s === 'MEDIUM') return 'bg-amber-950/40 text-amber-400 border-amber-800/30';
-  return 'bg-blue-950/40 text-blue-400 border-blue-800/30';
+  return 'bg-sky-950/30 text-sky-400 border-sky-900/40';
 }
 
 interface SimilarIncident {
@@ -176,7 +176,7 @@ export default function IncidentsView() {
     { value: 'CRITICAL', label: 'Critical', color: 'bg-red-500' },
     { value: 'HIGH', label: 'High', color: 'bg-orange-500' },
     { value: 'MEDIUM', label: 'Medium', color: 'bg-amber-500' },
-    { value: 'LOW', label: 'Low', color: 'bg-blue-500' },
+    { value: 'LOW', label: 'Low', color: 'bg-sky-500' },
   ];
 
   // Load incident details when selected
@@ -405,7 +405,7 @@ export default function IncidentsView() {
         status: 'completed',
         icon: AlertTriangle,
         color: 'border-red-500/30 bg-red-950/20 text-red-400',
-        dotColor: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]',
+        dotColor: 'bg-red-500',
         details: [
           `Severity: ${inc.severity}`,
           `Target key: ${inc.correlation_key || 'N/A'}`,
@@ -419,8 +419,8 @@ export default function IncidentsView() {
         timestamp: new Date(baseTime + 120000).toLocaleString(),
         status: 'completed',
         icon: Search,
-        color: 'border-blue-500/30 bg-blue-950/20 text-blue-400',
-        dotColor: 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]',
+        color: 'border-sky-500/30 bg-blue-950/20 text-sky-400',
+        dotColor: 'bg-sky-500',
         details: [
           'CTI Threat Intelligence correlation completed',
           `Related alerts mapped: ${incidentDetails?.alerts?.length || 0}`
@@ -435,8 +435,8 @@ export default function IncidentsView() {
         timestamp: new Date(baseTime + 300000).toLocaleString(),
         status: inc.status !== 'OPEN' || investigation ? 'completed' : 'active',
         icon: Brain,
-        color: inc.status !== 'OPEN' || investigation ? 'border-indigo-500/30 bg-indigo-950/20 text-indigo-400' : 'border-slate-800 bg-slate-900/10 text-slate-500',
-        dotColor: inc.status !== 'OPEN' || investigation ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]' : 'bg-slate-700 animate-pulse',
+        color: inc.status !== 'OPEN' || investigation ? 'border-sky-500/30 bg-sky-950/20 text-sky-400' : 'border-slate-800 bg-slate-900/10 text-slate-500',
+        dotColor: inc.status !== 'OPEN' || investigation ? 'bg-sky-400' : 'bg-slate-700 animate-pulse',
         details: inc.llm_summary 
           ? [inc.llm_summary.slice(0, 150) + (inc.llm_summary.length > 150 ? '...' : '')] 
           : ['Awaiting multi-agent analysis pipeline trigger.']
@@ -451,7 +451,7 @@ export default function IncidentsView() {
         status: inc.status === 'RESOLVED' ? 'completed' : completedTriageSteps.length > 0 ? 'active' : 'pending',
         icon: Zap,
         color: inc.status === 'RESOLVED' ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-400' : completedTriageSteps.length > 0 ? 'border-amber-500/30 bg-amber-950/20 text-amber-400' : 'border-slate-900 bg-slate-950/10 text-slate-600',
-        dotColor: inc.status === 'RESOLVED' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : completedTriageSteps.length > 0 ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-slate-800',
+        dotColor: inc.status === 'RESOLVED' ? 'bg-emerald-500' : completedTriageSteps.length > 0 ? 'bg-amber-500' : 'bg-slate-800',
         details: completedTriageSteps.length > 0 
           ? [`Executed ${completedTriageSteps.length} containment check-list actions.`] 
           : ['Response playbooks available in SOAR panel.']
@@ -466,7 +466,7 @@ export default function IncidentsView() {
         status: inc.status === 'RESOLVED' ? 'completed' : 'pending',
         icon: CheckCircle,
         color: inc.status === 'RESOLVED' ? 'border-emerald-500/30 bg-emerald-950/20 text-emerald-400' : 'border-slate-900 bg-slate-950/10 text-slate-600',
-        dotColor: inc.status === 'RESOLVED' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-800',
+        dotColor: inc.status === 'RESOLVED' ? 'bg-emerald-500' : 'bg-slate-800',
         details: inc.analyst_notes 
           ? [`Notes: ${inc.analyst_notes}`] 
           : ['Click "TP Resolve" or "FP Dismiss" in header to close case.']
@@ -489,10 +489,10 @@ export default function IncidentsView() {
       {selectedIncident && <MultiplayerCursor incidentId={selectedIncident.id.toString()} />}
 
       {/* IncidentsView Header with Real-time Client-side Filter */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/50 border border-slate-800 rounded-xl p-4 flex-shrink-0 shadow-lg">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#0e1319] border border-[#1c2530] rounded-md p-4 flex-shrink-0 shadow-lg">
         <div>
-          <h2 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-            <Shield className="w-4 h-4 text-blue-500" /> Security Incidents Command Center
+          <h2 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em] flex items-center gap-2">
+            <Shield className="w-4 h-4 text-sky-400" /> Incidents
           </h2>
           <p className="text-[10px] text-slate-400 mt-1">
             Real-time telemetry monitoring, automated response playbooks, and AI incident triage workbench.
@@ -500,7 +500,7 @@ export default function IncidentsView() {
         </div>
 
         {/* Real-time Incident Sparkline */}
-        <div className="hidden lg:flex items-center gap-4 bg-slate-950/40 border border-slate-800/60 px-4 py-2 rounded-xl">
+        <div className="hidden lg:flex items-center gap-4 bg-slate-950/40 border border-slate-800/60 px-4 py-2 rounded-md">
           <div className="text-left">
             <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">24h Incident Volume</div>
             <div className="flex items-baseline gap-1">
@@ -560,7 +560,7 @@ export default function IncidentsView() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Filter by IP, threat/attack type, title, key..."
-              className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:border-blue-500/50 text-slate-200 placeholder:text-slate-600"
+              className="w-full bg-[#090c11] border border-[#1c2530] rounded-md pl-9 pr-3 py-1.5 text-xs focus:outline-none focus:border-sky-500/50 text-slate-200 placeholder:text-slate-600"
             />
           </div>
         </div>
@@ -569,11 +569,11 @@ export default function IncidentsView() {
       {/* Content Area */}
       <div className="flex-1 flex gap-6 overflow-hidden min-h-0">
         {/* Left Panel — Incidents List */}
-        <div className="w-[380px] flex-shrink-0 bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col h-full">
+        <div className="w-[380px] flex-shrink-0 bg-[#0e1319] border border-[#1c2530] rounded-md overflow-hidden shadow-lg flex flex-col h-full">
         {/* Filters */}
         <div className="px-4 py-3 border-b border-slate-800 space-y-2 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Incidents</h3>
+            <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">Incidents</h3>
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -595,7 +595,7 @@ export default function IncidentsView() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search incidents..."
-              className="w-full bg-slate-950/60 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-[11px] focus:outline-none focus:border-blue-500/50 text-slate-200 placeholder:text-slate-600"
+              className="w-full bg-[#090c11] border border-[#1c2530] rounded-md pl-9 pr-3 py-2 text-[11px] focus:outline-none focus:border-sky-500/50 text-slate-200 placeholder:text-slate-600"
             />
           </div>
           <div className="flex gap-2">
@@ -603,21 +603,21 @@ export default function IncidentsView() {
               <button
                 type="button"
                 onClick={() => setIsSeverityDropdownOpen(!isSeverityDropdownOpen)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-300 focus:outline-none flex justify-between items-center gap-1.5 hover:border-slate-700 transition-all cursor-pointer text-left h-full min-h-[26px]"
+                className="w-full bg-[#090c11] border border-[#1c2530] rounded-md px-2 py-1.5 text-[10px] text-slate-300 focus:outline-none flex justify-between items-center gap-1.5 hover:border-slate-700 transition-all cursor-pointer text-left h-full min-h-[26px]"
               >
                 <span className="truncate">{getSeverityButtonText()}</span>
                 <ChevronDown className={`w-3 h-3 text-slate-400 flex-shrink-0 transition-transform ${isSeverityDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
               {isSeverityDropdownOpen && (
-                <div className="absolute left-0 mt-1 w-56 bg-slate-950 border border-slate-800 rounded-lg shadow-2xl z-30 py-1.5 text-[10px] animate-in fade-in duration-100">
+                <div className="absolute left-0 mt-1 w-56 bg-[#090c11] border border-[#1c2530] rounded-md shadow-2xl z-30 py-1.5 text-[10px] animate-in fade-in duration-100">
                   <div className="flex items-center justify-between px-3 py-1 border-b border-slate-800/80 text-[9px] text-slate-400 mb-1">
                     <span className="font-semibold uppercase tracking-wider">Severity</span>
                     <div className="flex gap-2">
                       <button 
                         type="button" 
                         onClick={() => setSelectedSeverities(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'])}
-                        className="hover:text-blue-400 font-bold uppercase transition-all"
+                        className="hover:text-sky-400 font-bold uppercase transition-all"
                       >
                         All
                       </button>
@@ -648,7 +648,7 @@ export default function IncidentsView() {
                           </div>
                           <div className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all ${
                             isChecked 
-                              ? 'bg-blue-600 border-blue-500 text-white' 
+                              ? 'bg-sky-600 border-sky-500 text-white' 
                               : 'border-slate-800 group-hover:border-slate-700 bg-slate-950'
                           }`}>
                             {isChecked && <Check className="w-2.5 h-2.5 stroke-[3]" />}
@@ -662,7 +662,7 @@ export default function IncidentsView() {
             </div>
             <select 
               value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-              className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-300 focus:outline-none"
+              className="flex-1 bg-[#090c11] border border-[#1c2530] rounded-md px-2 py-1.5 text-[10px] text-slate-300 focus:outline-none"
             >
               <option value="ALL">All Status</option>
               <option value="OPEN">Open</option>
@@ -687,7 +687,7 @@ export default function IncidentsView() {
                   key={inc.id}
                   onClick={() => handleSelectIncident(inc)}
                   className={`p-4 cursor-pointer hover:bg-slate-800/20 transition-all ${
-                    active ? 'bg-blue-950/20 border-l-2 border-blue-500' : 'border-l-2 border-transparent'
+                    active ? 'bg-blue-950/20 border-l-2 border-sky-500' : 'border-l-2 border-transparent'
                   }`}
                 >
                   <div className="flex justify-between items-start">
@@ -708,7 +708,7 @@ export default function IncidentsView() {
                       <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                         inc.status === 'RESOLVED' 
                           ? 'bg-emerald-950/40 text-emerald-400 border border-emerald-800/30' 
-                          : 'bg-blue-950/40 text-blue-400 border border-blue-800/30'
+                          : 'bg-sky-950/30 text-sky-400 border border-sky-900/40'
                       }`}>
                         {inc.status}
                       </span>
@@ -719,7 +719,7 @@ export default function IncidentsView() {
                           ? 'bg-orange-950/30 text-orange-400 border border-orange-900/20'
                           : inc.severity === 'MEDIUM'
                           ? 'bg-amber-950/30 text-amber-400 border border-amber-900/20'
-                          : 'bg-blue-950/30 text-blue-400 border border-blue-900/20'
+                          : 'bg-blue-950/30 text-sky-400 border border-blue-900/20'
                       }`}>
                         <Sparkles className="w-2.5 h-2.5" />
                         Risk: {inc.severity === 'CRITICAL' ? '85%' : inc.severity === 'HIGH' ? '65%' : inc.severity === 'MEDIUM' ? '45%' : '25%'}
@@ -735,7 +735,7 @@ export default function IncidentsView() {
       </div>
 
       {/* Right Panel — Detail Workbench */}
-      <div className="flex-1 bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col h-full">
+      <div className="flex-1 bg-[#0e1319] border border-[#1c2530] rounded-md overflow-hidden shadow-lg flex flex-col h-full">
         {selectedIncident ? (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Header with actions */}
@@ -751,21 +751,21 @@ export default function IncidentsView() {
                 <button
                   onClick={handleRunInvestigation}
                   disabled={investigationLoading}
-                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 shadow-lg shadow-indigo-900/20"
+                  className="bg-sky-600 hover:bg-sky-500 text-white font-medium px-3 py-1.5 rounded-md text-xs transition-colors flex items-center gap-1.5"
                 >
                   {investigationLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
                   Investigate
                 </button>
                 <button
                   onClick={() => handleUpdateIncident('RESOLVED', 'TRUE_POSITIVE')}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg text-xs transition-all"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-md text-xs transition-all"
                   disabled={updating}
                 >
                   TP Resolve
                 </button>
                 <button
                   onClick={() => handleUpdateIncident('RESOLVED', 'FALSE_POSITIVE')}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-semibold px-3 py-1.5 rounded-lg text-xs transition-all"
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-semibold px-3 py-1.5 rounded-md text-xs transition-all"
                   disabled={updating}
                 >
                   FP Dismiss
@@ -784,7 +784,7 @@ export default function IncidentsView() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all border-b-2 ${
                       active 
-                        ? 'text-blue-400 border-blue-500' 
+                        ? 'text-sky-400 border-sky-500' 
                         : 'text-slate-500 border-transparent hover:text-slate-300'
                     }`}
                   >
@@ -802,10 +802,10 @@ export default function IncidentsView() {
               {activeTab === 'overview' && (
                 <>
                   {/* AI Summary */}
-                  <div className="bg-gradient-to-r from-slate-950 to-indigo-950/20 border border-indigo-900/20 rounded-xl p-5 relative overflow-hidden">
+                  <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-5">
                     <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-4 h-4 text-indigo-400" />
-                      <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">AI Investigation Summary</h4>
+                      <Sparkles className="w-4 h-4 text-sky-400" />
+                      <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">AI Investigation Summary</h4>
                     </div>
                     <p className="text-xs text-slate-300 leading-relaxed">
                       {selectedIncident.llm_summary || "No AI analysis available yet. Click 'Investigate' to trigger the multi-agent investigation pipeline."}
@@ -816,17 +816,17 @@ export default function IncidentsView() {
                   {(investigationLoading || investigation) && (
                     <div className="space-y-3">
                       {investigationLoading ? (
-                        <div className="flex flex-col items-center justify-center py-10 gap-3 bg-indigo-950/10 border border-indigo-900/20 rounded-xl">
-                          <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+                        <div className="flex flex-col items-center justify-center py-10 gap-3 bg-[#090c11] border border-[#1c2530] rounded-md">
+                          <Loader2 className="w-6 h-6 text-sky-400 animate-spin" />
                           <p className="text-xs text-slate-400">Running multi-agent investigation pipeline...</p>
                           <p className="text-[10px] text-slate-600">Planner → Supervisor → Threat Hunter → SOAR → Executive</p>
                         </div>
                       ) : investigation ? (
-                        <div className="bg-indigo-950/20 border border-indigo-800/30 rounded-xl p-4">
-                          <h4 className="text-xs font-bold text-indigo-300 mb-2">Agent Team Results</h4>
+                        <div className="bg-[#090c11] border border-[#1c2530] rounded-md p-4">
+                          <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em] mb-2">Agent Team Results</h4>
                           {investigation.messages?.map((msg: string, idx: number) => (
                             <div key={idx} className="text-[11px] text-slate-300 py-1.5 border-b border-slate-800/50 last:border-0 flex items-start gap-2">
-                              <ChevronRight className="w-3 h-3 text-indigo-400 mt-0.5 flex-shrink-0" />
+                              <ChevronRight className="w-3 h-3 text-sky-400 mt-0.5 flex-shrink-0" />
                               <span>{msg}</span>
                             </div>
                           ))}
@@ -844,11 +844,11 @@ export default function IncidentsView() {
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     {[
                       { label: 'Severity', value: selectedIncident.severity, color: selectedIncident.severity === 'CRITICAL' ? 'text-red-400' : 'text-amber-400' },
-                      { label: 'Status', value: selectedIncident.status, color: selectedIncident.status === 'RESOLVED' ? 'text-emerald-400' : 'text-blue-400' },
+                      { label: 'Status', value: selectedIncident.status, color: selectedIncident.status === 'RESOLVED' ? 'text-emerald-400' : 'text-sky-400' },
                       { label: 'Verdict', value: selectedIncident.verdict || 'PENDING', color: 'text-slate-300' },
                       { label: 'Created', value: new Date(selectedIncident.timestamp).toLocaleString(), color: 'text-slate-300' },
                     ].map((item, idx) => (
-                      <div key={idx} className="bg-slate-950/60 border border-slate-800 rounded-lg p-3">
+                      <div key={idx} className="bg-[#090c11] border border-[#1c2530] rounded-md p-3">
                         <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">{item.label}</p>
                         <p className={`text-xs font-bold mt-1 ${item.color}`}>{item.value}</p>
                       </div>
@@ -856,16 +856,16 @@ export default function IncidentsView() {
                   </div>
 
                   {/* Predicted Risk Estimation */}
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-5 space-y-4">
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-md p-5 space-y-4">
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <ShieldAlert className="w-4 h-4 text-rose-400" />
-                        <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">AI Predicted Escalation Risk</h4>
+                        <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">AI Predicted Escalation Risk</h4>
                       </div>
                       
                       {riskLoading ? (
                         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold">
-                          <Loader2 className="w-3 h-3 animate-spin text-indigo-400" /> Assessing risk...
+                          <Loader2 className="w-3 h-3 animate-spin text-sky-400" /> Assessing risk...
                         </div>
                       ) : predictedRisk ? (
                         <div className="flex items-center gap-2">
@@ -876,7 +876,7 @@ export default function IncidentsView() {
                               ? 'bg-orange-950/40 text-orange-400 border-orange-900/40'
                               : predictedRisk.riskLevel === 'Medium'
                               ? 'bg-amber-950/40 text-amber-400 border-amber-900/40'
-                              : 'bg-blue-950/40 text-blue-400 border-blue-900/40'
+                              : 'bg-sky-950/30 text-sky-400 border-blue-900/40'
                           }`}>
                             {predictedRisk.riskLevel} Escalation Risk ({predictedRisk.likelihood})
                           </span>
@@ -896,10 +896,10 @@ export default function IncidentsView() {
                             <div 
                               className={`h-full rounded-full transition-all duration-1000 ${
                                 predictedRisk.riskScore >= 75
-                                  ? 'bg-gradient-to-r from-red-600 to-rose-500'
+                                  ? 'bg-red-500'
                                   : predictedRisk.riskScore >= 50
-                                  ? 'bg-gradient-to-r from-orange-500 to-amber-500'
-                                  : 'bg-gradient-to-r from-blue-500 to-emerald-500'
+                                  ? 'bg-amber-500'
+                                  : 'bg-emerald-500'
                               }`}
                               style={{ width: `${predictedRisk.riskScore}%` }}
                             />
@@ -910,13 +910,13 @@ export default function IncidentsView() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
-                          <div className="bg-slate-900/40 border border-slate-850 p-3 rounded-lg space-y-1">
+                          <div className="bg-slate-900/40 border border-slate-850 p-3 rounded-md space-y-1">
                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Risk Reasoning</p>
                             <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
                               {predictedRisk.reasoning}
                             </p>
                           </div>
-                          <div className="bg-slate-900/40 border border-slate-850 p-3 rounded-lg space-y-1">
+                          <div className="bg-slate-900/40 border border-slate-850 p-3 rounded-md space-y-1">
                             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">AI Mitigation Action Plan</p>
                             <p className="text-[11px] text-slate-300 font-medium leading-relaxed">
                               {predictedRisk.mitigation}
@@ -926,18 +926,18 @@ export default function IncidentsView() {
 
                         {/* ML Model Analysis */}
                         {predictedRisk.ml && predictedRisk.ml.triage && (
-                          <div className="bg-indigo-950/20 border border-indigo-900/30 p-4 rounded-lg space-y-3">
+                          <div className="bg-[#090c11] border border-[#1c2530] p-4 rounded-md space-y-3">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <Brain className="w-4 h-4 text-indigo-400" />
-                                <p className="text-[9px] text-indigo-300 font-bold uppercase tracking-wider">ML Model Analysis</p>
+                                <Brain className="w-4 h-4 text-sky-400" />
+                                <p className="text-[9px] text-slate-500 font-semibold uppercase tracking-[0.12em]">ML Model Analysis</p>
                               </div>
                               <span className="text-[9px] text-slate-500 font-mono">
                                 {predictedRisk.ml.model_version} · trained on {predictedRisk.ml.trained_on}
                               </span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-md">
                                 <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Predicted Attack</p>
                                 <p className="text-[11px] text-slate-200 font-bold mt-1 capitalize">
                                   {predictedRisk.ml.triage.attack_type.replace(/_/g, ' ')}
@@ -946,7 +946,7 @@ export default function IncidentsView() {
                                   confidence {Math.round((predictedRisk.ml.triage.attack_confidence || 0) * 100)}%
                                 </p>
                               </div>
-                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-md">
                                 <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Model Severity</p>
                                 <p className="text-[11px] text-slate-200 font-bold mt-1 capitalize">
                                   {predictedRisk.ml.triage.severity || '—'}
@@ -957,7 +957,7 @@ export default function IncidentsView() {
                                     : 'not scored'}
                                 </p>
                               </div>
-                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-md">
                                 <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">0-Day Anomaly Signal</p>
                                 <p className={`text-[11px] font-bold mt-1 ${predictedRisk.ml.anomaly?.is_anomaly ? 'text-rose-400' : 'text-emerald-400'}`}>
                                   {predictedRisk.ml.anomaly?.is_anomaly ? 'ANOMALOUS' : 'Normal'}
@@ -980,11 +980,11 @@ export default function IncidentsView() {
                   </div>
 
                   {/* Recommended Triage Section */}
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-5 space-y-5">
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-md p-5 space-y-5">
                     <div className="flex justify-between items-center border-b border-slate-800/60 pb-3">
                       <div className="flex items-center gap-2">
                         <Activity className="w-4 h-4 text-emerald-400" />
-                        <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Recommended Triage Plan</h4>
+                        <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">Recommended Triage Plan</h4>
                         <span className="text-[9px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/30 px-1.5 py-0.5 rounded-md font-semibold flex items-center gap-1">
                           <Sparkles className="w-2.5 h-2.5" /> AI Recommended
                         </span>
@@ -1008,7 +1008,7 @@ export default function IncidentsView() {
                         
                         {/* Threat Intelligence Row */}
                         {recommendedTriage.threatIntel && (
-                          <div className="bg-slate-900/50 border border-slate-800/60 rounded-xl p-4 space-y-3 relative overflow-hidden">
+                          <div className="bg-slate-900/50 border border-slate-800/60 rounded-md p-4 space-y-3 relative overflow-hidden">
                             <div className="absolute right-0 top-0 w-24 h-24 bg-rose-500/5 blur-2xl rounded-full" />
                             
                             <div className="flex justify-between items-start">
@@ -1021,24 +1021,24 @@ export default function IncidentsView() {
                               </span>
                             </div>
 
-                            <p className="text-[11px] text-slate-300 leading-relaxed italic bg-slate-950/40 border border-slate-850 p-2.5 rounded-lg">
+                            <p className="text-[11px] text-slate-300 leading-relaxed italic bg-slate-950/40 border border-slate-850 p-2.5 rounded-md">
                               {recommendedTriage.threatIntel.context}
                             </p>
 
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px]">
-                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-lg">
+                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-md">
                                 <span className="text-slate-500 block font-semibold uppercase text-[8px] tracking-wider">Threat Actor</span>
                                 <span className="text-slate-300 font-bold">{recommendedTriage.threatIntel.threatActor || 'UNKNOWN'}</span>
                               </div>
-                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-lg">
+                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-md">
                                 <span className="text-slate-500 block font-semibold uppercase text-[8px] tracking-wider">Campaign</span>
                                 <span className="text-slate-300 font-bold truncate block" title={recommendedTriage.threatIntel.campaign}>{recommendedTriage.threatIntel.campaign || 'N/A'}</span>
                               </div>
-                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-lg">
+                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-md">
                                 <span className="text-slate-500 block font-semibold uppercase text-[8px] tracking-wider">Malware Family</span>
                                 <span className="text-slate-300 font-bold">{recommendedTriage.threatIntel.malwareFamily || 'N/A'}</span>
                               </div>
-                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-lg">
+                              <div className="bg-slate-950/40 border border-slate-850 p-2 rounded-md">
                                 <span className="text-slate-500 block font-semibold uppercase text-[8px] tracking-wider">Matched Indicator</span>
                                 <span className="text-rose-400 font-mono font-bold truncate block" title={recommendedTriage.threatIntel.matchedIndicator}>{recommendedTriage.threatIntel.matchedIndicator || 'N/A'}</span>
                               </div>
@@ -1050,12 +1050,12 @@ export default function IncidentsView() {
                         {recommendedTriage.similarIncidents && recommendedTriage.similarIncidents.length > 0 && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                              <History className="w-3.5 h-3.5 text-blue-400" />
+                              <History className="w-3.5 h-3.5 text-sky-400" />
                               <span>Similar Historical Cases</span>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {recommendedTriage.similarIncidents.map((hist: any) => (
-                                <div key={hist.id} className="bg-slate-900/40 border border-slate-800 rounded-lg p-3 flex flex-col justify-between space-y-2">
+                                <div key={hist.id} className="bg-slate-900/40 border border-slate-800 rounded-md p-3 flex flex-col justify-between space-y-2">
                                   <div>
                                     <div className="flex justify-between items-center">
                                       <span className="text-[10px] font-bold text-slate-300 truncate pr-2 max-w-[180px]">
@@ -1095,7 +1095,7 @@ export default function IncidentsView() {
                             <div className="space-y-4">
                               {recommendedTriage.recommendedPlaybooks.map((playbook: any) => {
                                 return (
-                                  <div key={playbook.id} className="bg-slate-900/30 border border-slate-800/80 rounded-xl p-4 space-y-3">
+                                  <div key={playbook.id} className="bg-slate-900/30 border border-slate-800/80 rounded-md p-4 space-y-3">
                                     <div className="flex justify-between items-start flex-wrap gap-2">
                                       <div>
                                         <h5 className="text-[11.5px] font-bold text-slate-200">{playbook.name}</h5>
@@ -1142,7 +1142,7 @@ export default function IncidentsView() {
                                                   setCompletedTriageSteps([...completedTriageSteps, stepKey]);
                                                 }
                                               }}
-                                              className="w-full text-left bg-slate-950/40 hover:bg-slate-950 border border-slate-850 hover:border-slate-800 rounded-lg px-3 py-2 flex items-center gap-2.5 transition-all text-[10.5px] cursor-pointer group"
+                                              className="w-full text-left bg-slate-950/40 hover:bg-slate-950 border border-slate-850 hover:border-slate-800 rounded-md px-3 py-2 flex items-center gap-2.5 transition-all text-[10.5px] cursor-pointer group"
                                             >
                                               <div className={`w-3.5 h-3.5 rounded flex items-center justify-center transition-all ${
                                                 isChecked 
@@ -1198,7 +1198,7 @@ export default function IncidentsView() {
                       </h4>
                       <div className="space-y-2">
                         {incidentDetails.alerts.slice(0, 5).map((alert: any) => (
-                          <div key={alert.id} className="bg-slate-950/40 border border-slate-800 rounded-lg p-3 flex justify-between items-center">
+                          <div key={alert.id} className="bg-slate-950/40 border border-slate-800 rounded-md p-3 flex justify-between items-center">
                             <div>
                               <span className="text-[10px] font-semibold text-slate-200">{alert.title}</span>
                               <p className="text-[9px] text-slate-500 mt-0.5">
@@ -1231,7 +1231,7 @@ export default function IncidentsView() {
                     <textarea
                       value={notes}
                       onChange={e => setNotes(e.target.value)}
-                      className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-blue-500/50 transition-all text-slate-200 h-24 resize-none"
+                      className="w-full bg-slate-950/60 border border-[#1c2530] rounded-md px-4 py-3 text-xs focus:outline-none focus:border-sky-500/50 transition-all text-slate-200 h-24 resize-none"
                       placeholder="Enter investigation observations, hypothesis, or findings..."
                     />
                   </div>
@@ -1241,7 +1241,7 @@ export default function IncidentsView() {
               {/* TIMELINE TAB */}
               {activeTab === 'timeline' && (
                 <div className="space-y-4">
-                  <div className="flex items-start gap-2 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2">
+                  <div className="flex items-start gap-2 bg-[#090c11] border border-[#1c2530] rounded-md px-3 py-2">
                     <Info className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
                     <p className="text-[10px] text-slate-500 leading-relaxed">
                       Lifecycle timeline derived from the incident record (created / updated / verdict). Intermediate stage
@@ -1253,8 +1253,8 @@ export default function IncidentsView() {
                   {/* Left Column: State Transitions Timeline */}
                   <div className="space-y-4">
                     <div className="flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-blue-400" />
-                      <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">State Transition Lifecycle</h4>
+                      <Activity className="w-4 h-4 text-sky-400" />
+                      <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">State Transition Lifecycle</h4>
                     </div>
                     
                     <div className="relative pl-8 border-l border-slate-800 space-y-6">
@@ -1272,7 +1272,7 @@ export default function IncidentsView() {
                                 isCompleted 
                                   ? 'bg-slate-900 border-emerald-500/50 text-emerald-400' 
                                   : isActive 
-                                  ? 'bg-slate-900 border-blue-500 text-blue-400 animate-pulse' 
+                                  ? 'bg-slate-900 border-sky-500 text-sky-400 animate-pulse' 
                                   : 'bg-slate-950 border-slate-800 text-slate-600'
                               }`}>
                                 <StepIcon className="w-4 h-4" />
@@ -1283,11 +1283,11 @@ export default function IncidentsView() {
                             </div>
 
                             {/* Transition content card */}
-                            <div className={`border rounded-xl p-4 transition-all space-y-2 ${
+                            <div className={`border rounded-md p-4 transition-all space-y-2 ${
                               isCompleted 
                                 ? 'bg-slate-900/40 border-slate-800/80' 
                                 : isActive 
-                                ? 'bg-blue-950/10 border-blue-900/30 shadow-[0_0_12px_rgba(59,130,246,0.05)]' 
+                                ? 'bg-sky-950/20 border-sky-900/30' 
                                 : 'bg-slate-950/10 border-slate-900/60 opacity-60'
                             }`}>
                               <div className="flex justify-between items-start flex-wrap gap-2">
@@ -1296,7 +1296,7 @@ export default function IncidentsView() {
                                     isCompleted 
                                       ? 'bg-emerald-950/50 text-emerald-400 border border-emerald-900/20' 
                                       : isActive 
-                                      ? 'bg-blue-950/50 text-blue-400 border border-blue-900/20' 
+                                      ? 'bg-blue-950/50 text-sky-400 border border-blue-900/20' 
                                       : 'bg-slate-900 text-slate-500 border border-slate-800/50'
                                   }`}>
                                     {step.phase}
@@ -1333,15 +1333,15 @@ export default function IncidentsView() {
                   <div className="space-y-4 border-t xl:border-t-0 xl:border-l border-slate-800 xl:pl-6 pt-6 xl:pt-0">
                     <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4 text-slate-400" />
-                      <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider">Raw Ingested Security Events</h4>
+                      <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">Raw Ingested Security Events</h4>
                     </div>
                     
                     {incidentDetails?.related_logs && incidentDetails.related_logs.length > 0 ? (
                       <div className="relative pl-6 border-l border-slate-800 space-y-4">
                         {incidentDetails.related_logs.slice(0, 20).map((log: any, idx: number) => (
                           <div key={idx} className="relative">
-                            <div className="absolute -left-[29px] top-1.5 w-2 h-2 rounded-full bg-slate-800 border border-blue-500 shadow-[0_0_4px_rgba(59,130,246,0.5)]"></div>
-                            <div className="bg-slate-950/40 border border-slate-850 rounded-lg p-3 space-y-1">
+                            <div className="absolute -left-[29px] top-1.5 w-2 h-2 rounded-full bg-slate-800 border border-sky-500"></div>
+                            <div className="bg-slate-950/40 border border-slate-850 rounded-md p-3 space-y-1">
                               <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-bold text-slate-300 font-mono tracking-wide">{log.event_type || 'Log Event'}</span>
                                 <span className="text-[9px] text-slate-500 font-mono">{new Date(log.timestamp).toLocaleString()}</span>
@@ -1356,7 +1356,7 @@ export default function IncidentsView() {
                         ))}
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center py-16 text-slate-500 text-xs gap-2 bg-slate-950/20 border border-slate-850 rounded-xl">
+                      <div className="flex flex-col items-center justify-center py-16 text-slate-500 text-xs gap-2 bg-slate-950/20 border border-slate-850 rounded-md">
                         <Clock className="w-6 h-6 opacity-30" />
                         <span className="text-slate-500">No raw event telemetry available</span>
                       </div>
@@ -1371,10 +1371,10 @@ export default function IncidentsView() {
               {activeTab === 'evidence' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <FileText className="w-3.5 h-3.5 text-blue-400" /> Collected Evidence
+                    <FileText className="w-3.5 h-3.5 text-sky-400" /> Collected Evidence
                   </h4>
                   {incidentDetails ? (
-                    <div className="bg-slate-950/40 border border-slate-800 rounded-xl overflow-hidden">
+                    <div className="bg-slate-950/40 border border-[#1c2530] rounded-md overflow-hidden">
                       <div className="divide-y divide-slate-800/60">
                         {Object.entries(incidentDetails)
                           .filter(([k, v]) => !['alerts', 'related_logs', 'logs'].includes(k))
@@ -1392,7 +1392,7 @@ export default function IncidentsView() {
                             </span>
                             <div className="space-y-1.5">
                               {incidentDetails.alerts.map((alert: any) => (
-                                <div key={alert.id} className="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2">
+                                <div key={alert.id} className="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-md px-3 py-2">
                                   <span className="text-[11px] text-slate-300 truncate">{alert.attack_type || alert.name || `Alert ${alert.id}`}</span>
                                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${getSeverityColor(alert.severity)}`}>
                                     {alert.severity}
@@ -1422,14 +1422,14 @@ export default function IncidentsView() {
                   {incidentDetails?.alerts?.map((alert: any) => {
                     const mitre = alert.mitre_mapping || {};
                     return (
-                      <div key={alert.id} className="bg-slate-950/40 border border-slate-800 rounded-xl p-4 space-y-3">
+                      <div key={alert.id} className="bg-slate-950/40 border border-[#1c2530] rounded-md p-4 space-y-3">
                         <p className="text-xs font-semibold text-slate-200">Alert: {alert.attack_type}</p>
                         <div className="grid grid-cols-2 gap-2">
                           {mitre.techniques?.map((tech: any, idx: number) => (
                             <button
                               key={idx}
                               onClick={() => handleTechniqueClick(tech.technique_id)}
-                              className={`bg-violet-950/20 border rounded-lg p-2.5 text-left transition-all ${
+                              className={`bg-violet-950/20 border rounded-md p-2.5 text-left transition-all ${
                                 selectedTechnique === tech.technique_id
                                   ? 'border-violet-400 bg-violet-950/40'
                                   : 'border-violet-800/30 hover:border-violet-600'
@@ -1443,7 +1443,7 @@ export default function IncidentsView() {
                           )}
                         </div>
                         {selectedTechnique && (
-                          <div className="bg-slate-900/80 border border-violet-800/30 rounded-xl p-4">
+                          <div className="bg-slate-900/80 border border-violet-800/30 rounded-md p-4">
                             {techniqueLoading ? (
                               <div className="flex items-center gap-2 text-[11px] text-slate-400">
                                 <Loader2 className="w-4 h-4 animate-spin text-violet-400" /> Loading technique detail...
@@ -1505,9 +1505,9 @@ export default function IncidentsView() {
               {activeTab === 'threatintel' && (
                 <div className="space-y-4">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5 text-indigo-400" /> Threat Intelligence
+                    <Globe className="w-3.5 h-3.5 text-sky-400" /> Threat Intelligence
                   </h4>
-                  <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-6">
+                  <div className="bg-slate-950/40 border border-[#1c2530] rounded-md p-6">
                     <div className="flex items-start gap-3">
                       <Unplug className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
                       <div>
@@ -1518,7 +1518,7 @@ export default function IncidentsView() {
                         </p>
                         <button
                           onClick={() => setActivePage('settings')}
-                          className="mt-3 flex items-center gap-1.5 text-[11px] font-bold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-800/40 px-3 py-2 rounded-lg transition-all"
+                          className="mt-3 flex items-center gap-1.5 text-[11px] font-bold bg-sky-950/30 hover:bg-sky-950/50 text-sky-300 border border-sky-900/40 px-3 py-2 rounded-md transition-all"
                         >
                           <Plug className="w-3.5 h-3.5" /> Connect an integration
                         </button>
@@ -1526,7 +1526,7 @@ export default function IncidentsView() {
                     </div>
                   </div>
                   {recommendedTriage?.threatIntel && (
-                    <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4">
+                    <div className="bg-slate-950/40 border border-[#1c2530] rounded-md p-4">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">AI-correlated threat context</p>
                       <p className="text-[11px] text-slate-400 leading-relaxed whitespace-pre-line">
                         {typeof recommendedTriage.threatIntel === 'string'
@@ -1558,7 +1558,7 @@ export default function IncidentsView() {
                           key={btn.action}
                           onClick={() => triggerSOAR(btn.action)}
                           disabled={actionLoading !== null}
-                          className={`bg-slate-950 border border-slate-800 ${btn.hoverColor} p-4 rounded-xl text-center group transition-all text-xs font-semibold`}
+                          className={`bg-slate-950 border border-slate-800 ${btn.hoverColor} p-4 rounded-md text-center group transition-all text-xs font-semibold`}
                         >
                           <Icon className="w-5 h-5 mx-auto mb-2 text-slate-400 group-hover:text-slate-200 transition-all" />
                           {actionLoading === btn.action ? 'Executing...' : btn.label}
@@ -1574,7 +1574,7 @@ export default function IncidentsView() {
                   {soarLog.length > 0 && (
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Execution Feed</label>
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 font-mono text-[10px] text-slate-300 space-y-1.5 h-40 overflow-y-auto">
+                      <div className="bg-slate-950 border border-[#1c2530] rounded-md p-4 font-mono text-[10px] text-slate-300 space-y-1.5 h-40 overflow-y-auto">
                         {soarLog.map((log, idx) => (
                           <div key={idx} className="truncate">
                             <span className="text-blue-500">[{new Date().toLocaleTimeString()}]</span> {log}
@@ -1592,7 +1592,7 @@ export default function IncidentsView() {
                       </h4>
                       <button
                         onClick={() => setActivePage('approvals')}
-                        className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-0.5"
+                        className="text-[10px] font-bold text-sky-400 hover:text-sky-300 flex items-center gap-0.5"
                       >
                         Open Response Center <ChevronRight className="w-3 h-3" />
                       </button>
@@ -1602,13 +1602,13 @@ export default function IncidentsView() {
                         <Loader2 className="w-4 h-4 animate-spin" /> Loading approvals…
                       </div>
                     ) : incidentApprovals.length === 0 ? (
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500 py-4 bg-slate-950/40 border border-slate-800 rounded-xl px-4">
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 py-4 bg-slate-950/40 border border-[#1c2530] rounded-md px-4">
                         <CheckCircle className="w-4 h-4 text-emerald-500" />
                         No pending response actions for this incident.
                       </div>
                     ) : (
                       incidentApprovals.map((ap: any) => (
-                        <div key={ap.id} className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div key={ap.id} className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
                           <div className="min-w-0">
                             <p className="text-xs font-bold text-slate-200">{ap.playbook_name || ap.action_type || `Approval #${ap.id}`}</p>
                             <p className="text-[10px] text-slate-500 mt-1 truncate">
@@ -1618,13 +1618,13 @@ export default function IncidentsView() {
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <button
                               onClick={() => decideIncidentApproval(ap.id, 'approve')}
-                              className="text-[10px] font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800/40 px-3 py-1.5 rounded-lg transition-all"
+                              className="text-[10px] font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800/40 px-3 py-1.5 rounded-md transition-all"
                             >
                               Approve
                             </button>
                             <button
                               onClick={() => decideIncidentApproval(ap.id, 'reject')}
-                              className="text-[10px] font-bold bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-800/40 px-3 py-1.5 rounded-lg transition-all"
+                              className="text-[10px] font-bold bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-800/40 px-3 py-1.5 rounded-md transition-all"
                             >
                               Reject
                             </button>
@@ -1653,13 +1653,13 @@ export default function IncidentsView() {
                     </h4>
                     <button
                       onClick={handlePrintReport}
-                      className="flex items-center gap-1.5 text-[11px] font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800/40 px-3 py-2 rounded-lg transition-all"
+                      className="flex items-center gap-1.5 text-[11px] font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800/40 px-3 py-2 rounded-md transition-all"
                     >
                       <Printer className="w-3.5 h-3.5" /> Print / Save PDF
                     </button>
                   </div>
                   {selectedIncident && (
-                    <div className="incident-print-report bg-slate-950/40 border border-slate-800 rounded-xl p-6 space-y-4">
+                    <div className="incident-print-report bg-slate-950/40 border border-[#1c2530] rounded-md p-6 space-y-4">
                       <div className="border-b border-slate-800 pb-3">
                         <p className="text-[10px] text-slate-500 uppercase tracking-wider">EDYSOR Incident Report</p>
                         <h3 className="text-base font-bold text-slate-100 mt-1">{selectedIncident.title}</h3>

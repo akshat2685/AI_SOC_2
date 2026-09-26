@@ -75,10 +75,14 @@ def create_app() -> FastAPI:
     # CORS must be the outermost middleware so preflight requests are
     # handled before auth. Origins are env-driven (BACKEND_CORS_ORIGINS,
     # comma-separated) so the Vercel frontend can call this API.
+    # Preview deployments get per-commit URLs, so we additionally allow
+    # this project's own Vercel preview subdomains via regex. The pattern
+    # is scoped to ai-soc-2-frontend-* so no other Vercel site is trusted.
     cors_origins = [o.strip() for o in settings.BACKEND_CORS_ORIGINS.split(",") if o.strip()]
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
+        allow_origin_regex=r"https://ai-soc-2-frontend-[a-z0-9-]+\.vercel\.app",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

@@ -125,7 +125,7 @@ export default function CopilotDrawer() {
       {/* Floating Toggle Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center group"
+        className="fixed bottom-6 right-6 z-40 bg-sky-600 hover:bg-sky-500 text-white p-4 rounded-full shadow-2xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center group"
       >
         <MessageSquare className="w-6 h-6 group-hover:rotate-6 transition-all" />
         <span className="max-w-0 overflow-hidden group-hover:max-w-xs group-hover:ml-2 transition-all duration-300 ease-out text-xs font-bold uppercase tracking-wider">
@@ -143,7 +143,7 @@ export default function CopilotDrawer() {
         <div className="h-16 px-6 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-blue-500" />
-            <span className="font-bold text-sm bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-300">
+            <span className="font-bold text-sm text-slate-100">
               EDYSOR Security Copilot
             </span>
           </div>
@@ -177,7 +177,7 @@ export default function CopilotDrawer() {
                 <div
                   className={`max-w-[85%] rounded-2xl px-4 py-3 text-xs leading-relaxed ${
                     isUser
-                      ? 'bg-blue-600 text-white rounded-tr-none'
+                      ? 'bg-sky-600 text-white rounded-tr-none'
                       : 'bg-slate-800/80 border border-slate-700/60 text-slate-200 rounded-tl-none'
                   }`}
                 >
@@ -189,8 +189,8 @@ export default function CopilotDrawer() {
                       
                       {/* Confidence score */}
                       {msg.confidence_score !== undefined && (
-                        <div className="flex items-center gap-1.5 text-blue-400 font-semibold">
-                          <CheckCircle className="w-3.5 h-3.5 text-blue-400" />
+                        <div className="flex items-center gap-1.5 text-sky-400 font-semibold">
+                          <CheckCircle className="w-3.5 h-3.5 text-sky-400" />
                           <span>Threat Confidence: {Math.round(msg.confidence_score * 100)}%</span>
                         </div>
                       )}
@@ -259,7 +259,7 @@ export default function CopilotDrawer() {
           <button
             type="button"
             onClick={toggleVoice}
-            className={`p-3 rounded-xl border flex items-center justify-center transition-all ${
+            className={`p-3 rounded-md border flex items-center justify-center transition-all ${
               isListening 
                 ? 'bg-red-950/40 border-red-800 text-red-400 animate-pulse scale-105' 
                 : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
@@ -274,14 +274,14 @@ export default function CopilotDrawer() {
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Ask Copilot a question..."
-            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs focus:outline-none focus:border-blue-500 transition-all text-white placeholder-slate-600"
+            className="flex-1 bg-slate-950 border border-[#1c2530] rounded-md px-4 py-3 text-xs focus:outline-none focus:border-sky-500 transition-all text-white placeholder-slate-600"
             disabled={loading}
           />
           
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white p-3 rounded-xl transition-all flex items-center justify-center shadow-lg shadow-blue-600/10 active:scale-95"
+            className="bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white p-3 rounded-md transition-all flex items-center justify-center shadow-lg shadow-blue-600/10 active:scale-95"
           >
             <Send className="w-4 h-4" />
           </button>

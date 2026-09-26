@@ -127,8 +127,8 @@ export default function IntegrationsView() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Plug className="w-6 h-6 text-white" />
+          <div className="w-11 h-11 rounded-md bg-[#131a23] border border-[#243041] flex items-center justify-center">
+            <Plug className="w-6 h-6 text-slate-100" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-slate-100">Connect your environment</h1>
@@ -137,14 +137,14 @@ export default function IntegrationsView() {
         </div>
         <button
           onClick={fetchAll}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-md text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 transition-all"
         >
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 text-xs bg-red-950/40 border border-red-800/80 text-red-400 px-4 py-3 rounded-xl">{error}</div>
+        <div className="mb-4 text-xs bg-red-950/40 border border-red-800/80 text-red-400 px-4 py-3 rounded-md">{error}</div>
       )}
 
       {loading ? (
@@ -165,7 +165,7 @@ export default function IntegrationsView() {
                   const isOpen = expanded === integ.id;
                   const h = health[String(integ.id)];
                   return (
-                    <div key={String(integ.id)} className="bg-slate-950/60 border border-slate-800 rounded-xl overflow-hidden">
+                    <div key={String(integ.id)} className="bg-slate-950/60 border border-[#1c2530] rounded-md overflow-hidden">
                       <div className="flex items-center gap-3 px-4 py-3">
                         <button onClick={() => toggleHealth(integ)} className="flex-1 flex items-center gap-3 text-left min-w-0">
                           {isOpen ? <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />}
@@ -222,9 +222,9 @@ export default function IntegrationsView() {
               <button
                 key={c}
                 onClick={() => setCategory(c)}
-                className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                className={`px-4 py-2 rounded-md text-xs font-semibold transition-all ${
                   category === c
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                    ? 'bg-sky-600 text-white'
                     : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
                 }`}
               >
@@ -248,8 +248,8 @@ export default function IntegrationsView() {
                       <h3 className="text-sm font-bold text-slate-100">{conn.name}</h3>
                       <p className="text-[11px] text-slate-500">{conn.category} · {conn.connection_method}</p>
                     </div>
-                    <div className="w-9 h-9 rounded-lg bg-blue-600/15 border border-blue-500/25 flex items-center justify-center flex-shrink-0">
-                      <Plug className="w-4 h-4 text-blue-400" />
+                    <div className="w-9 h-9 rounded-md bg-sky-600/15 border border-sky-500/25 flex items-center justify-center flex-shrink-0">
+                      <Plug className="w-4 h-4 text-sky-400" />
                     </div>
                   </div>
 
@@ -280,7 +280,7 @@ export default function IntegrationsView() {
                   <div className="mt-auto pt-2">
                     <button
                       onClick={() => setModalConnector(conn)}
-                      className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-xl bg-blue-600/20 border border-blue-500/30 text-blue-300 hover:bg-blue-600/30 transition-all"
+                      className="w-full flex items-center justify-center gap-2 text-xs font-bold py-2.5 rounded-md bg-sky-600/20 border border-sky-500/30 text-blue-300 hover:bg-sky-600/30 transition-all"
                     >
                       <Plus className="w-4 h-4" /> Connect
                     </button>
