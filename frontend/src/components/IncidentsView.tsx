@@ -1202,23 +1202,28 @@ export default function IncidentsView() {
                             <div>
                               <span className="text-[10px] font-semibold text-slate-200">{alert.title}</span>
                               <p className="text-[9px] text-slate-500 mt-0.5">
-                                {alert.attack_type} • IP:{' '}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setBlockingIp(alert.attacker_ip);
-                                    setBlockReason(`Incident correlation: ${alert.title} (${alert.attack_type})`);
-                                  }}
-                                  className="font-mono text-rose-400 hover:text-rose-300 hover:underline bg-rose-950/20 hover:bg-rose-950/40 px-1 py-0.5 rounded border border-rose-900/30 hover:border-rose-700/50 font-semibold cursor-pointer transition-all inline-flex items-center gap-1"
-                                  title="Click for Quick Block"
-                                >
-                                  {alert.attacker_ip}
-                                </button>
+                                {alert.attack_type}
+                                {alert.device_id ? ` • ${alert.device_id.slice(0, 12)}` : ''}
+                                {alert.detector ? ` • ${alert.detector}` : ''}
+                                {alert.attacker_ip ? (
+                                  <>
+                                    {' '}• IP:{' '}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setBlockingIp(alert.attacker_ip);
+                                        setBlockReason(`Incident correlation: ${alert.title} (${alert.attack_type})`);
+                                      }}
+                                      className="font-mono text-rose-400 hover:text-rose-300 hover:underline bg-rose-950/20 hover:bg-rose-950/40 px-1 py-0.5 rounded border border-rose-900/30 hover:border-rose-700/50 font-semibold cursor-pointer transition-all inline-flex items-center gap-1"
+                                      title="Click for Quick Block"
+                                    >
+                                      {alert.attacker_ip}
+                                    </button>
+                                  </>
+                                ) : null}
                               </p>
                             </div>
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                              alert.severity === 'CRITICAL' ? 'bg-red-950/40 text-red-400' : 'bg-amber-950/40 text-amber-400'
-                            }`}>{alert.severity}</span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${getSeverityColor(alert.severity)}`}>{alert.severity}</span>
                           </div>
                         ))}
                       </div>
