@@ -18,7 +18,7 @@ def upgrade():
         sa.Column("technique_id", sa.String(20), nullable=True, index=True),
         sa.Column("tactic", sa.String(50), nullable=True),
         sa.Column("scenario", JSONB(), nullable=False, server_default="{}"),
-        sa.Column("detected", sa.Boolean(), nullable=False, server_default="false", index=True),
+        sa.Column("detected", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("detector", sa.String(50), nullable=True),
         sa.Column("rule_id", sa.String(50), nullable=True),
         sa.Column("analysis", JSONB(), nullable=False, server_default="{}"),
@@ -26,11 +26,10 @@ def upgrade():
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), index=True),
     )
     op.create_index("ix_twin_scenarios_source_created", "twin_scenarios", ["source", "created_at"])
-    op.create_index("ix_twin_scenarios_detected", "twin_scenarios", ["detected"])
+    # Note: ix_twin_scenarios_detected is auto-created by index=True on the column.
 
 
 def downgrade():
     from alembic import op
-    op.drop_index("ix_twin_scenarios_detected", table_name="twin_scenarios")
     op.drop_index("ix_twin_scenarios_source_created", table_name="twin_scenarios")
     op.drop_table("twin_scenarios")

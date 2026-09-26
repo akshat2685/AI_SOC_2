@@ -26,7 +26,7 @@ class TwinScenario(Base):
     __tablename__ = "twin_scenarios"
     __table_args__ = (
         Index("ix_twin_scenarios_source_created", "source", "created_at"),
-        Index("ix_twin_scenarios_detected", "detected"),
+        # Note: ix_twin_scenarios_detected is auto-created by index=True on the column.
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
