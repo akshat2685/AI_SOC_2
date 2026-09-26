@@ -1,6 +1,6 @@
 # EDYSOR reference endpoint sensor
 
-A real, working sensor for Linux and macOS. Install it on a machine and it
+A real, working sensor for Linux, macOS, and Windows. Install it on a machine and it
 starts sending security telemetry — processes, network connections, file
 integrity, auth events — to the EDYSOR backend's event-ingestion API.
 
@@ -19,6 +19,15 @@ Every `interval_seconds` (default 30) it:
    SHA-256. The writing process is **unknown** via polling → `null`.
 4. **Auth** (Linux only) — tails `/var/log/auth.log` for logins, failed
    logins, sudo. Skipped silently when the log is missing/unreadable.
+5. **Windows Event Log** (Windows only, needs `pywin32` + Administrator) —
+   reads the Security channel for logons (4624), failed logons (4625),
+   process creation (4688, when auditing is enabled), user creation (4720),
+   and privileged logons (4672). Event 4688 closes much of the polling gap
+   for short-lived processes. Skipped with a logged warning when pywin32 is
+   missing or the log can't be opened.
+6. **Registry persistence** (Windows only, stdlib `winreg`) — polls the
+   `HKCU/HKLM ...\CurrentVersion\Run` keys; added/changed/removed values
+   are reported as `file`-type events with the value path as `file.path`.
 
 Events batch-POST to `POST {backend_url}/api/v1/events/ingest` with the API
 key in the **`X-API-Key`** header:
@@ -38,8 +47,10 @@ stores the returned `device_id` in the config.
 ## Install
 
 ```bash
-pip install -r requirements.txt   # psutil, requests — Python 3.10+
+pip install -r requirements.txt            # Linux/macOS: psutil, requests
+py -m pip install -r requirements-windows.txt  # Windows: psutil, requests, pywin32
 ```
+Python 3.10+ required on all platforms.
 
 1. In the EDYSOR product: **Settings → API Keys → create a key**.
 2. Write `~/.config/edysor/sensor.json`:
@@ -52,8 +63,11 @@ pip install -r requirements.txt   # psutil, requests — Python 3.10+
    ```
    (`chmod 600` it — it holds a secret. The sensor also does this itself.)
 3. Test: `python3 edysor_sensor.py --once`
-4. Run persistently: see `edysor-sensor.service` (Linux systemd) or
-   `nohup python3 edysor_sensor.py &` (macOS).
+4. Run persistently: see `edysor-sensor.service` (Linux systemd),
+   `nohup python3 edysor_sensor.py &` (macOS), or on Windows PowerShell:
+   `Start-Process py -ArgumentList "edysor_sensor.py" -WindowStyle Hidden`.
+   On Windows the config lives at `%USERPROFILE%\.config\edysor\sensor.json`,
+   and Administrator rights unlock Event Log telemetry.
 
 Flags: `--once` (single cycle, for testing), `--register-only`,
 `--config <path>` (use a different config file), `-v` (debug logging).

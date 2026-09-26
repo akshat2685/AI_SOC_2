@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""EDYSOR reference endpoint sensor — Linux/macOS, user-space.
+"""EDYSOR reference endpoint sensor — Linux/macOS/Windows, user-space.
 
 Collects process, network, file-integrity and auth events on the local machine
 and ships them to the EDYSOR backend event-ingestion API:
@@ -10,18 +10,33 @@ and ships them to the EDYSOR backend event-ingestion API:
 
 First run registers the device automatically:
     POST {backend_url}/api/v1/agents/register
-    {"hostname", "platform": "linux|macos", "os_version", "arch",
+    {"hostname", "platform": "linux|macos|windows", "os_version", "arch",
      "agent_version": "0.1.0"}
 and stores the returned device_id in the config file.
+
+Windows notes:
+  * Process/network/file collectors use psutil and work on Windows as-is.
+  * Windows Event Log (Security channel: logons 4624/4625, process creation
+    4688, user creation 4720) needs the optional `pywin32` package AND
+    administrator privileges (the Security log is admin-only). Without either,
+    event-log collection is skipped with a logged warning — never silently.
+  * Registry Run-key persistence (HKCU/HKLM ...\\CurrentVersion\\Run) is
+    polled via stdlib `winreg`; reported as file-type events with the key
+    path as `file.path`.
+  * StringInserts indices in event-log parsing are best-effort (they vary
+    across Windows builds); unparseable fields are sent as null, never
+    invented.
 
 Honesty notes (read before trusting its output):
   * This is a USER-SPACE, POLLING sensor. It sees a snapshot every
     `interval_seconds`; short-lived processes that start and exit between two
-    polls are MISSED. It is not a kernel hook / eBPF tracer.
+    polls are MISSED (on Windows, Event ID 4688 closes much of this gap when
+    process-creation auditing is enabled). It is not a kernel hook / ETW
+    consumer.
   * Fields it cannot observe are sent as JSON null, never invented.
     (e.g. per-connection byte counters, the PID that wrote a file.)
   * `severity_hint` is a small documented HEURISTIC, not a detection verdict.
-  * DNS capture is intentionally NOT implemented (needs pcap/root).
+  * DNS capture is intentionally NOT implemented (needs pcap/admin).
   * macOS auth-log parsing is intentionally NOT implemented (unified logging
     needs special entitlements); Linux parses /var/log/auth.log best-effort.
 """
@@ -58,10 +73,29 @@ except ImportError:  # pragma: no cover
 
 AGENT_VERSION = "0.1.0"
 DEFAULT_INTERVAL = 30
-DEFAULT_WATCH_PATHS = ["/etc/crontab", "/etc/cron.d", "~/.ssh/authorized_keys"]
 SPOOL_NAME = "spool.jsonl"
 CONFIG_NAME = "sensor.json"
 HASH_CHUNK = 65536
+
+# Watch paths are platform-specific: persistence / integrity locations an
+# attacker touches. TEMP-style directories are deliberately excluded (noise).
+_WATCH_PATHS = {
+    "linux": ["/etc/crontab", "/etc/cron.d", "~/.ssh/authorized_keys"],
+    "macos": ["/etc/crontab", "~/.ssh/authorized_keys"],
+    "windows": [
+        r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup",
+        r"%SystemRoot%\System32\drivers\etc\hosts",
+    ],
+}
+
+
+def default_watch_paths() -> list[str]:
+    """Integrity watch list for the current platform."""
+    if sys.platform == "win32":
+        return list(_WATCH_PATHS["windows"])
+    if sys.platform == "darwin":
+        return list(_WATCH_PATHS["macos"])
+    return list(_WATCH_PATHS["linux"])
 
 log = logging.getLogger("edysor_sensor")
 
@@ -84,7 +118,7 @@ def load_config(path: Path) -> dict:
         "api_key": "",
         "device_id": "",
         "interval_seconds": DEFAULT_INTERVAL,
-        "watch_paths": list(DEFAULT_WATCH_PATHS),
+        "watch_paths": default_watch_paths(),
         "auth_log_offset": 0,
     }
     if path.exists():
@@ -116,7 +150,9 @@ def detect_platform() -> str:
         return "macos"
     if sys.platform.startswith("linux"):
         return "linux"
-    print(f"ERROR: unsupported platform '{sys.platform}' (linux and macos only)",
+    if sys.platform == "win32":
+        return "windows"
+    print(f"ERROR: unsupported platform '{sys.platform}' (linux, macos, windows only)",
           file=sys.stderr)
     sys.exit(2)
 
@@ -246,6 +282,13 @@ class CollectorState:
         self.conns: set[tuple] = set()
         self.file_state: dict[str, tuple[float, int]] = {}
         self.baselined_files = False
+        # Windows Event Log: highest record number seen (baseline on 1st run).
+        self.win_event_record: int = 0
+        self.win_eventlog_baselined = False
+        self.win_eventlog_warned = False
+        # Windows Run-key persistence: {key_path: {value_name: value_data}}.
+        self.run_values: dict[str, dict[str, str]] = {}
+        self.run_baselined = False
 
 
 def collect_processes(state: CollectorState) -> list[dict]:
@@ -503,6 +546,257 @@ def collect_auth(state: CollectorState, cfg: dict, config_path: Path) -> list[di
 
 
 # --------------------------------------------------------------------------- #
+# Windows collectors (win32 only; everything import-gated and best-effort)
+# --------------------------------------------------------------------------- #
+
+# Security-channel Event IDs we care about. StringInserts layouts vary across
+# Windows builds — every index below is guarded; unknown fields become null.
+_WIN_EVENT_IDS = {4624, 4625, 4688, 4720, 4672}
+
+
+def _win32evtlog():
+    try:
+        import win32evtlog
+        return win32evtlog
+    except ImportError:
+        return None
+
+
+def _inserts(ev, idx: int) -> str | None:
+    """Best-effort StringInserts lookup; None when absent/unparseable."""
+    try:
+        inserts = ev.StringInserts
+        if inserts and 0 <= idx < len(inserts):
+            val = inserts[idx]
+            return str(val) if val is not None else None
+    except Exception:
+        pass
+    return None
+
+
+def _evt_time_utc(ev) -> str:
+    try:
+        return ev.TimeGenerated.astimezone(timezone.utc).isoformat()
+    except Exception:
+        return now_iso()
+
+
+def collect_win_events(state: CollectorState) -> list[dict]:
+    """Read new Security-log events (logons, process creation, user mgmt).
+
+    Requires pywin32 AND admin rights (Security log is admin-only). Event
+    4688 closes the polling gap for short-lived processes when process
+    auditing is enabled — otherwise it simply yields nothing.
+    """
+    events: list[dict] = []
+    if sys.platform != "win32":
+        return events
+    w32 = _win32evtlog()
+    if w32 is None:
+        if not state.win_eventlog_warned:
+            log.warning("pywin32 not installed — Windows Event Log collection "
+                        "disabled (pip install pywin32 for logon/process telemetry)")
+            state.win_eventlog_warned = True
+        return events
+
+    hand = None
+    try:
+        hand = w32.OpenEventLog(None, "Security")
+    except Exception as exc:
+        if not state.win_eventlog_warned:
+            log.warning("cannot open Security event log (run as administrator "
+                        "for logon/process telemetry): %s", exc)
+            state.win_eventlog_warned = True
+        return events
+
+    try:
+        flags = w32.EVENTLOG_BACKWARDS_READ | w32.EVENTLOG_SEQUENTIAL_READ
+        newest = state.win_event_record
+        pending: list = []
+        # Newest-first; stop at the first record we have already seen.
+        # Bound total work per cycle so a huge backlog can't stall us.
+        for _ in range(10):  # <= ~10 chunks per cycle
+            try:
+                chunk = w32.ReadEventLog(hand, flags, 0)
+            except Exception as exc:
+                log.warning("event log read failed: %s", exc)
+                break
+            if not chunk:
+                break
+            done = False
+            for ev in chunk:
+                rec = ev.RecordNumber
+                if rec > newest:
+                    newest = rec
+                if rec <= state.win_event_record:
+                    done = True
+                    break
+                pending.append(ev)
+                if len(pending) >= 300:
+                    done = True
+                    break
+            if done:
+                break
+
+        if not state.win_eventlog_baselined:
+            # First run: establish the high-water mark, emit nothing (no
+            # flooding the backend with history).
+            state.win_event_record = newest
+            state.win_eventlog_baselined = True
+            return events
+
+        for ev in reversed(pending):  # chronological order
+            eid = ev.EventID & 0xFFFF
+            if eid not in _WIN_EVENT_IDS:
+                continue
+            observed = _evt_time_utc(ev)
+            if eid == 4625:  # failed logon
+                events.append({
+                    "event_type": "auth", "observed_at": observed,
+                    "severity_hint": hint_for_auth("failed_login", "failure"),
+                    "auth": {"user": _inserts(ev, 5), "action": "failed_login",
+                             "src_ip": _inserts(ev, 19), "result": "failure"},
+                })
+            elif eid == 4624:  # successful logon
+                events.append({
+                    "event_type": "auth", "observed_at": observed,
+                    "severity_hint": hint_for_auth("login", "success"),
+                    "auth": {"user": _inserts(ev, 5), "action": "login",
+                             "src_ip": _inserts(ev, 18), "result": "success"},
+                })
+            elif eid == 4720:  # user account created
+                events.append({
+                    "event_type": "auth", "observed_at": observed,
+                    "severity_hint": "medium",
+                    "auth": {"user": _inserts(ev, 1), "action": "user_created",
+                             "src_ip": None, "result": "success"},
+                })
+            elif eid == 4688:  # process created (audit policy dependent)
+                exe = _inserts(ev, 5)
+                cmdline = _inserts(ev, 8)
+                name = (exe or "").replace("/", "\\").split("\\")[-1] or None
+                events.append({
+                    "event_type": "process", "observed_at": observed,
+                    "severity_hint": hint_for_process(cmdline or ""),
+                    "process": {
+                        "pid": None,  # event log carries the new PID only in
+                        "ppid": None,  # hex inserts; sent null, not guessed
+                        "name": name, "exe": exe or None,
+                        "cmdline": [cmdline] if cmdline else [],
+                        "user": _inserts(ev, 10),
+                        "started_at": observed,
+                        "hash_sha256": None,  # not read off disk here
+                    },
+                })
+            elif eid == 4672:  # special privileges assigned (admin logon)
+                events.append({
+                    "event_type": "auth", "observed_at": observed,
+                    "severity_hint": "low",
+                    "auth": {"user": _inserts(ev, 1), "action": "privileged_logon",
+                             "src_ip": None, "result": "success"},
+                })
+        state.win_event_record = newest
+    finally:
+        try:
+            if hand is not None:
+                w32.CloseEventLog(hand)
+        except Exception:
+            pass
+    return events
+
+
+_WIN_RUN_KEYS = [
+    ("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Run"),
+    ("HKLM", r"Software\Microsoft\Windows\CurrentVersion\Run"),
+]
+
+
+def _read_run_key(root_name: str, subkey: str) -> dict[str, str] | None:
+    """Return {value_name: str(value_data)} for a Run key; None on any error
+    (missing key, access denied on HKLM without admin, non-Windows)."""
+    if sys.platform != "win32":
+        return None
+    try:
+        import winreg
+    except ImportError:
+        return None
+    root = winreg.HKEY_CURRENT_USER if root_name == "HKCU" else winreg.HKEY_LOCAL_MACHINE
+    try:
+        key = winreg.OpenKey(root, subkey, 0, winreg.KEY_READ)
+    except OSError:
+        return None
+    values: dict[str, str] = {}
+    try:
+        i = 0
+        while True:
+            try:
+                name, data, _typ = winreg.EnumValue(key, i)
+            except OSError:
+                break
+            values[str(name)] = str(data)
+            i += 1
+    finally:
+        winreg.CloseKey(key)
+    return values
+
+
+def collect_win_persistence(state: CollectorState) -> list[dict]:
+    """Poll Registry Run keys for persistence changes.
+
+    Reported as file-type events with the registry value path as file.path —
+    documented mapping, not a claim that the registry is a file.
+    """
+    events: list[dict] = []
+    if sys.platform != "win32":
+        return events
+    current: dict[str, dict[str, str]] = {}
+    for root_name, subkey in _WIN_RUN_KEYS:
+        vals = _read_run_key(root_name, subkey)
+        if vals is not None:
+            current[f"{root_name}\\{subkey}"] = vals
+
+    if not state.run_baselined:
+        state.run_values = current
+        state.run_baselined = True
+        return events
+
+    for key_path, vals in current.items():
+        old = state.run_values.get(key_path, {})
+        for name, data in vals.items():
+            if name not in old:
+                action = "created"
+            elif old[name] != data:
+                action = "modified"
+            else:
+                continue
+            events.append({
+                "event_type": "file", "observed_at": now_iso(),
+                "severity_hint": "high",  # persistence change: high-interest
+                "file": {
+                    "path": f"{key_path}\\{name}",
+                    "action": action,
+                    "hash_sha256": hashlib.sha256(data.encode("utf-8",
+                                              errors="replace")).hexdigest(),
+                    "pid": None, "process_name": None,
+                },
+            })
+        for name in old:
+            if name not in vals:
+                events.append({
+                    "event_type": "file", "observed_at": now_iso(),
+                    "severity_hint": "high",
+                    "file": {
+                        "path": f"{key_path}\\{name}",
+                        "action": "deleted",
+                        "hash_sha256": None,
+                        "pid": None, "process_name": None,
+                    },
+                })
+    state.run_values = current
+    return events
+
+
+# --------------------------------------------------------------------------- #
 # Spool + ingest
 # --------------------------------------------------------------------------- #
 
@@ -596,8 +890,11 @@ def run_cycle(state: CollectorState, cfg: dict, config_path: Path,
     events: list[dict] = []
     events += collect_processes(state)
     events += collect_network(state)
-    events += collect_files(state, cfg.get("watch_paths", DEFAULT_WATCH_PATHS))
+    events += collect_files(state, cfg.get("watch_paths") or default_watch_paths())
     events += collect_auth(state, cfg, config_path)
+    if sys.platform == "win32":
+        events += collect_win_events(state)
+        events += collect_win_persistence(state)
     if events:
         log.info("collected %d event(s)", len(events))
 
@@ -640,7 +937,7 @@ def check_config(cfg: dict) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="EDYSOR reference endpoint sensor (Linux/macOS).")
+        description="EDYSOR reference endpoint sensor (Linux/macOS/Windows).")
     parser.add_argument("--config", default=str(default_config_path()),
                         help="config file path (default ~/.config/edysor/sensor.json)")
     parser.add_argument("--once", action="store_true",

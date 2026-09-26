@@ -1,15 +1,16 @@
 # EDYSOR sensor — install snippet (reference)
 
-# Shown by the EDYSOR onboarding wizard as the Linux/macOS "Download agent"
-# bootstrap. REVIEW BEFORE RUNNING. Downloads the reference sensor from the
-# AI_SOC_2 repo, installs its two Python dependencies, and prints next steps.
-# Nothing is executed with elevated privileges by this snippet itself.
+# Reference copy of the install snippet shown by the EDYSOR onboarding
+# wizard ("Download agent" bootstrap). REVIEW BEFORE RUNNING. Downloads the
+# reference sensor from the backend's sensor-download endpoint, installs its
+# Python dependencies, and prints next steps. Nothing is executed with
+# elevated privileges by this snippet itself.
 
 set -e
 mkdir -p ~/.local/share/edysor-sensor
 cd ~/.local/share/edysor-sensor
-curl -fsSL -O https://raw.githubusercontent.com/akshat2685/AI_SOC_2/mvp-live/sensor/edysor_sensor.py
-curl -fsSL -O https://raw.githubusercontent.com/akshat2685/AI_SOC_2/mvp-live/sensor/requirements.txt
+curl -fsSL -o edysor_sensor.py "https://aisoc2-backend.onrender.com/api/v1/agents/sensor/download/edysor_sensor.py"
+curl -fsSL -o requirements.txt "https://aisoc2-backend.onrender.com/api/v1/agents/sensor/download/requirements.txt"
 python3 -m pip install -r requirements.txt
 
 cat <<'EOF'
@@ -35,6 +36,11 @@ EDYSOR sensor downloaded. Next steps:
        sudo systemctl enable --now edysor-sensor
      Or on macOS, run in the background:
        nohup python3 edysor_sensor.py >/tmp/edysor-sensor.log 2>&1 &
+     Or on Windows (PowerShell):
+       py -m pip install -r requirements-windows.txt
+       # (download requirements-windows.txt from the same download endpoint)
+       Start-Process py -ArgumentList "edysor_sensor.py" -WindowStyle Hidden
+     On Windows, run PowerShell as Administrator for Event Log telemetry.
 
   First run registers the device automatically and prints its device_id.
   If the backend is unreachable, events spool locally to

@@ -40,7 +40,7 @@ DEGRADED_THRESHOLD_S = 300
 
 # Files the installer snippet may fetch. Served from the packaged sensor/
 # directory (see Dockerfile.backend-prod COPY sensor ./sensor).
-SENSOR_FILES = {"edysor_sensor.py", "requirements.txt"}
+SENSOR_FILES = {"edysor_sensor.py", "requirements.txt", "requirements-windows.txt"}
 
 
 def _sensor_dir() -> Path:
