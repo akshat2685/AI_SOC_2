@@ -41,10 +41,10 @@ from sklearn.preprocessing import LabelEncoder
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-import train
+from app.ml import train
 from app.domain.models import TrainingFeedback
 from app.ml.feedback import feedback_to_dataframe
-from threat_data import FEATURE_COLUMNS
+from app.ml.threat_data import FEATURE_COLUMNS
 
 # ---- regression gate thresholds (exact, per spec) ----
 TRIAGE_ACC_TOLERANCE = 0.02   # new acc must be >= current acc - 0.02
