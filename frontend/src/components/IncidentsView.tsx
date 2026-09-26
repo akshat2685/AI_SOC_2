@@ -28,14 +28,27 @@ import {
   ShieldAlert,
   History,
   Globe,
-  Activity
+  Activity,
+  Info,
+  ShieldCheck,
+  Printer,
+  Plug,
+  Unplug
 } from 'lucide-react';
 import XAIPanel from './XAIPanel';
 import MultiplayerCursor from './MultiplayerCursor';
 import VoiceCommandBar from './VoiceCommandBar';
 import QuickBlockModal from './QuickBlockModal';
 
-type DetailTab = 'summary' | 'investigation' | 'timeline' | 'mitre' | 'soar';
+type DetailTab = 'overview' | 'timeline' | 'evidence' | 'mitre' | 'threatintel' | 'response' | 'reports';
+
+function getSeverityColor(severity: string): string {
+  const s = (severity || '').toUpperCase();
+  if (s === 'CRITICAL') return 'bg-red-950/40 text-red-400 border-red-800/30';
+  if (s === 'HIGH') return 'bg-orange-950/40 text-orange-400 border-orange-800/30';
+  if (s === 'MEDIUM') return 'bg-amber-950/40 text-amber-400 border-amber-800/30';
+  return 'bg-blue-950/40 text-blue-400 border-blue-800/30';
+}
 
 interface SimilarIncident {
   id: number;
@@ -75,7 +88,7 @@ interface RecommendedTriageData {
 }
 
 export default function IncidentsView() {
-  const { incidents, setIncidents, alerts, theme } = useStore();
+  const { incidents, setIncidents, alerts, theme, setActivePage } = useStore();
 
   // Sparkline data calculation for last 24 hours
   const nowTime = Date.now();
@@ -109,13 +122,18 @@ export default function IncidentsView() {
   const [updating, setUpdating] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [soarLog, setSoarLog] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<DetailTab>('summary');
+  const [activeTab, setActiveTab] = useState<DetailTab>('overview');
   const [incidentDetails, setIncidentDetails] = useState<any>(null);
   const [investigation, setInvestigation] = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [investigationLoading, setInvestigationLoading] = useState(false);
   const [predictedRisk, setPredictedRisk] = useState<any>(null);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [selectedTechnique, setSelectedTechnique] = useState<string | null>(null);
+  const [techniqueDetail, setTechniqueDetail] = useState<any>(null);
+  const [techniqueLoading, setTechniqueLoading] = useState(false);
+  const [incidentApprovals, setIncidentApprovals] = useState<any[]>([]);
+  const [approvalsLoading, setApprovalsLoading] = useState(false);
   const [recommendedTriage, setRecommendedTriage] = useState<RecommendedTriageData | null>(null);
   const [triageLoading, setTriageLoading] = useState(false);
   const [completedTriageSteps, setCompletedTriageSteps] = useState<string[]>([]);
@@ -199,15 +217,74 @@ export default function IncidentsView() {
       .finally(() => setTriageLoading(false));
   }, [selectedIncident?.id]);
 
+  // Load approvals related to the selected incident (for the Response tab)
+  useEffect(() => {
+    if (!selectedIncident) {
+      setIncidentApprovals([]);
+      return;
+    }
+    setApprovalsLoading(true);
+    api.getApprovals('PENDING')
+      .then((res: any) => {
+        const list: any[] = res?.approvals ?? [];
+        // Prefer incident-scoped approvals when the backend provides an incident link;
+        // otherwise fall back to all pending approvals so the queue is never empty-silently.
+        const scoped = list.filter((a) =>
+          a.incident_id === selectedIncident.id ||
+          a.context?.incident_id === selectedIncident.id
+        );
+        setIncidentApprovals(scoped.length > 0 ? scoped : list);
+      })
+      .catch((e: any) => console.error('Incident approvals fetch failed:', e))
+      .finally(() => setApprovalsLoading(false));
+  }, [selectedIncident?.id]);
+
+  const handleTechniqueClick = async (techniqueId: string) => {
+    if (selectedTechnique === techniqueId && techniqueDetail) {
+      setSelectedTechnique(null);
+      setTechniqueDetail(null);
+      return;
+    }
+    setSelectedTechnique(techniqueId);
+    setTechniqueDetail(null);
+    setTechniqueLoading(true);
+    try {
+      const data = await api.getMitreTechnique(techniqueId);
+      setTechniqueDetail(data);
+    } catch (e: any) {
+      setTechniqueDetail({ error: e.message || 'Failed to load technique detail' });
+    } finally {
+      setTechniqueLoading(false);
+    }
+  };
+
+  const decideIncidentApproval = async (id: number, action: 'approve' | 'reject') => {
+    try {
+      if (action === 'approve') await api.approveApproval(id);
+      else await api.rejectApproval(id);
+      setIncidentApprovals((prev) => prev.filter((a) => a.id !== id));
+      setSoarLog((prev) => [`Response: approval #${id} ${action}d.`, ...prev]);
+    } catch (e: any) {
+      setSoarLog((prev) => [`Response: failed to ${action} approval #${id}: ${e.message}`, ...prev]);
+    }
+  };
+
+  const handlePrintReport = () => {
+    window.print();
+  };
+
   const handleSelectIncident = (inc: Incident) => {
     setSelectedIncident(inc);
     setNotes(inc.analyst_notes || '');
-    setActiveTab('summary');
+    setActiveTab('overview');
     setInvestigation(null);
     setIncidentDetails(null);
     setRecommendedTriage(null);
     setPredictedRisk(null);
     setCompletedTriageSteps([]);
+    setSelectedTechnique(null);
+    setTechniqueDetail(null);
+    setIncidentApprovals([]);
   };
 
   const handleUpdateIncident = async (status: string, verdict: string) => {
@@ -229,7 +306,7 @@ export default function IncidentsView() {
   const handleRunInvestigation = async () => {
     if (!selectedIncident) return;
     setInvestigationLoading(true);
-    setActiveTab('investigation');
+    setActiveTab('overview');
     try {
       const taskDesc = `Investigate Incident ${selectedIncident.id}: ${selectedIncident.title}. Correlation key: ${selectedIncident.correlation_key}.`;
       const result = await api.triggerAgentTask(taskDesc);
@@ -398,11 +475,13 @@ export default function IncidentsView() {
   };
 
   const tabs: { id: DetailTab; label: string; icon: React.ElementType }[] = [
-    { id: 'summary', label: 'Summary', icon: Eye },
-    { id: 'investigation', label: 'AI Investigation', icon: Brain },
+    { id: 'overview', label: 'Overview', icon: Eye },
     { id: 'timeline', label: 'Timeline', icon: Clock },
+    { id: 'evidence', label: 'Evidence', icon: FileText },
     { id: 'mitre', label: 'MITRE', icon: Target },
-    { id: 'soar', label: 'SOAR', icon: Zap },
+    { id: 'threatintel', label: 'Threat Intel', icon: Globe },
+    { id: 'response', label: 'Response', icon: Zap },
+    { id: 'reports', label: 'Reports', icon: Download },
   ];
 
   return (
@@ -719,8 +798,8 @@ export default function IncidentsView() {
             {/* Tab Content */}
             <div className="flex-1 overflow-y-auto p-6 space-y-5">
               
-              {/* SUMMARY TAB */}
-              {activeTab === 'summary' && (
+              {/* OVERVIEW TAB */}
+              {activeTab === 'overview' && (
                 <>
                   {/* AI Summary */}
                   <div className="bg-gradient-to-r from-slate-950 to-indigo-950/20 border border-indigo-900/20 rounded-xl p-5 relative overflow-hidden">
@@ -732,6 +811,34 @@ export default function IncidentsView() {
                       {selectedIncident.llm_summary || "No AI analysis available yet. Click 'Investigate' to trigger the multi-agent investigation pipeline."}
                     </p>
                   </div>
+
+                  {/* AI Investigation run results (triggered from header) */}
+                  {(investigationLoading || investigation) && (
+                    <div className="space-y-3">
+                      {investigationLoading ? (
+                        <div className="flex flex-col items-center justify-center py-10 gap-3 bg-indigo-950/10 border border-indigo-900/20 rounded-xl">
+                          <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+                          <p className="text-xs text-slate-400">Running multi-agent investigation pipeline...</p>
+                          <p className="text-[10px] text-slate-600">Planner → Supervisor → Threat Hunter → SOAR → Executive</p>
+                        </div>
+                      ) : investigation ? (
+                        <div className="bg-indigo-950/20 border border-indigo-800/30 rounded-xl p-4">
+                          <h4 className="text-xs font-bold text-indigo-300 mb-2">Agent Team Results</h4>
+                          {investigation.messages?.map((msg: string, idx: number) => (
+                            <div key={idx} className="text-[11px] text-slate-300 py-1.5 border-b border-slate-800/50 last:border-0 flex items-start gap-2">
+                              <ChevronRight className="w-3 h-3 text-indigo-400 mt-0.5 flex-shrink-0" />
+                              <span>{msg}</span>
+                            </div>
+                          ))}
+                          {investigation.xai_payload && (
+                            <div className="mt-4">
+                              <XAIPanel xaiData={investigation.xai_payload} />
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
 
                   {/* Incident Metadata Grid */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -816,6 +923,56 @@ export default function IncidentsView() {
                             </p>
                           </div>
                         </div>
+
+                        {/* ML Model Analysis */}
+                        {predictedRisk.ml && predictedRisk.ml.triage && (
+                          <div className="bg-indigo-950/20 border border-indigo-900/30 p-4 rounded-lg space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Brain className="w-4 h-4 text-indigo-400" />
+                                <p className="text-[9px] text-indigo-300 font-bold uppercase tracking-wider">ML Model Analysis</p>
+                              </div>
+                              <span className="text-[9px] text-slate-500 font-mono">
+                                {predictedRisk.ml.model_version} · trained on {predictedRisk.ml.trained_on}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Predicted Attack</p>
+                                <p className="text-[11px] text-slate-200 font-bold mt-1 capitalize">
+                                  {predictedRisk.ml.triage.attack_type.replace(/_/g, ' ')}
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  confidence {Math.round((predictedRisk.ml.triage.attack_confidence || 0) * 100)}%
+                                </p>
+                              </div>
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Model Severity</p>
+                                <p className="text-[11px] text-slate-200 font-bold mt-1 capitalize">
+                                  {predictedRisk.ml.triage.severity || '—'}
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  {predictedRisk.ml.triage.severity_confidence != null
+                                    ? `confidence ${Math.round(predictedRisk.ml.triage.severity_confidence * 100)}%`
+                                    : 'not scored'}
+                                </p>
+                              </div>
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">0-Day Anomaly Signal</p>
+                                <p className={`text-[11px] font-bold mt-1 ${predictedRisk.ml.anomaly?.is_anomaly ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  {predictedRisk.ml.anomaly?.is_anomaly ? 'ANOMALOUS' : 'Normal'}
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  anomaly score {predictedRisk.ml.anomaly?.anomaly_score ?? '—'}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 italic leading-relaxed">
+                              {predictedRisk.ml.features}. The anomaly detector is the 0-day signal (benign-baseline
+                              deviations); the classifier only recognizes attack patterns seen in training. {predictedRisk.ml.warning}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <p className="text-[10px] text-slate-500 italic">Failed to calculate risk indicators. Try selecting another incident.</p>
@@ -1081,46 +1238,17 @@ export default function IncidentsView() {
                 </>
               )}
 
-              {/* INVESTIGATION TAB */}
-              {activeTab === 'investigation' && (
-                <div className="space-y-4">
-                  {investigationLoading ? (
-                    <div className="flex flex-col items-center justify-center py-16 gap-3">
-                      <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-                      <p className="text-xs text-slate-400">Running multi-agent investigation pipeline...</p>
-                      <p className="text-[10px] text-slate-600">Planner → Supervisor → Threat Hunter → SOAR → Executive</p>
-                    </div>
-                  ) : investigation ? (
-                    <div className="space-y-3">
-                      <div className="bg-indigo-950/20 border border-indigo-800/30 rounded-xl p-4">
-                        <h4 className="text-xs font-bold text-indigo-300 mb-2">Agent Team Results</h4>
-                        {investigation.messages?.map((msg: string, idx: number) => (
-                          <div key={idx} className="text-[11px] text-slate-300 py-1.5 border-b border-slate-800/50 last:border-0 flex items-start gap-2">
-                            <ChevronRight className="w-3 h-3 text-indigo-400 mt-0.5 flex-shrink-0" />
-                            <span>{msg}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* XAI Panel Integration */}
-                      {investigation.xai_payload && (
-                        <div className="mt-4">
-                          <XAIPanel xaiData={investigation.xai_payload} />
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-16 text-slate-500 gap-3">
-                      <Brain className="w-10 h-10 opacity-30" />
-                      <p className="text-xs">Click "Investigate" to run the multi-agent pipeline</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* TIMELINE TAB */}
               {activeTab === 'timeline' && (
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2">
+                    <Info className="w-3.5 h-3.5 text-slate-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-[10px] text-slate-500 leading-relaxed">
+                      Lifecycle timeline derived from the incident record (created / updated / verdict). Intermediate stage
+                      timestamps are illustrative of the workflow — not observed security events. Ingested events on the right are raw data.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   
                   {/* Left Column: State Transitions Timeline */}
                   <div className="space-y-4">
@@ -1236,6 +1364,53 @@ export default function IncidentsView() {
                   </div>
 
                 </div>
+                </div>
+              )}
+
+              {/* EVIDENCE TAB */}
+              {activeTab === 'evidence' && (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-blue-400" /> Collected Evidence
+                  </h4>
+                  {incidentDetails ? (
+                    <div className="bg-slate-950/40 border border-slate-800 rounded-xl overflow-hidden">
+                      <div className="divide-y divide-slate-800/60">
+                        {Object.entries(incidentDetails)
+                          .filter(([k, v]) => !['alerts', 'related_logs', 'logs'].includes(k))
+                          .filter(([, v]) => v !== null && v !== undefined && v !== '' && typeof v !== 'object')
+                          .map(([key, value]) => (
+                            <div key={key} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{key.replace(/_/g, ' ')}</span>
+                              <span className="text-[11px] text-slate-200 font-mono text-right break-all max-w-[60%]">{String(value)}</span>
+                            </div>
+                          ))}
+                        {incidentDetails?.alerts?.length > 0 && (
+                          <div className="px-4 py-2.5">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2">
+                              Related alerts ({incidentDetails.alerts.length})
+                            </span>
+                            <div className="space-y-1.5">
+                              {incidentDetails.alerts.map((alert: any) => (
+                                <div key={alert.id} className="flex items-center justify-between bg-slate-900/60 border border-slate-800 rounded-lg px-3 py-2">
+                                  <span className="text-[11px] text-slate-300 truncate">{alert.attack_type || alert.name || `Alert ${alert.id}`}</span>
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex-shrink-0 ${getSeverityColor(alert.severity)}`}>
+                                    {alert.severity}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center py-12 text-slate-500 text-xs gap-2">
+                      <FileText className="w-5 h-5 opacity-30" /> Loading incident evidence…
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-600">Evidence is rendered directly from the incident record — no enrichment or fabrication.</p>
+                </div>
               )}
 
               {/* MITRE TAB */}
@@ -1251,14 +1426,71 @@ export default function IncidentsView() {
                         <p className="text-xs font-semibold text-slate-200">Alert: {alert.attack_type}</p>
                         <div className="grid grid-cols-2 gap-2">
                           {mitre.techniques?.map((tech: any, idx: number) => (
-                            <div key={idx} className="bg-violet-950/20 border border-violet-800/30 rounded-lg p-2.5">
+                            <button
+                              key={idx}
+                              onClick={() => handleTechniqueClick(tech.technique_id)}
+                              className={`bg-violet-950/20 border rounded-lg p-2.5 text-left transition-all ${
+                                selectedTechnique === tech.technique_id
+                                  ? 'border-violet-400 bg-violet-950/40'
+                                  : 'border-violet-800/30 hover:border-violet-600'
+                              }`}
+                            >
                               <p className="text-[10px] font-bold text-violet-300">{tech.technique_id}</p>
                               <p className="text-[9px] text-slate-400">{tech.technique_name}</p>
-                            </div>
+                            </button>
                           )) || (
                             <p className="text-[10px] text-slate-500 col-span-2">MITRE mapping will populate after investigation</p>
                           )}
                         </div>
+                        {selectedTechnique && (
+                          <div className="bg-slate-900/80 border border-violet-800/30 rounded-xl p-4">
+                            {techniqueLoading ? (
+                              <div className="flex items-center gap-2 text-[11px] text-slate-400">
+                                <Loader2 className="w-4 h-4 animate-spin text-violet-400" /> Loading technique detail...
+                              </div>
+                            ) : techniqueDetail?.error ? (
+                              <p className="text-[11px] text-red-400">{techniqueDetail.error}</p>
+                            ) : techniqueDetail ? (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs font-bold text-violet-200">
+                                    {techniqueDetail.technique_id || selectedTechnique}: {techniqueDetail.name}
+                                  </p>
+                                  <button
+                                    onClick={() => { setSelectedTechnique(null); setTechniqueDetail(null); }}
+                                    className="text-slate-500 hover:text-slate-300"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                {techniqueDetail.tactics?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {techniqueDetail.tactics.map((t: string) => (
+                                      <span key={t} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-violet-950/50 border border-violet-800/30 text-violet-300">{t}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {techniqueDetail.description && (
+                                  <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-4">{techniqueDetail.description}</p>
+                                )}
+                                {techniqueDetail.mitigations?.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-bold text-slate-300 mb-1">Mitigations</p>
+                                    <ul className="space-y-1">
+                                      {techniqueDetail.mitigations.slice(0, 3).map((m: any, mi: number) => (
+                                        <li key={mi} className="text-[10px] text-slate-400 flex items-start gap-1.5">
+                                          <ShieldCheck className="w-3 h-3 text-emerald-500 mt-0.5 flex-shrink-0" />
+                                          <span><span className="font-semibold text-slate-300">{m.mitigation_id || m.name}:</span> {(m.description || '').slice(0, 160)}{(m.description || '').length > 160 ? '…' : ''}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                <p className="text-[9px] text-slate-600">Source: MITRE ATT&CK enterprise dataset (live)</p>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                     );
                   }) || (
@@ -1269,8 +1501,46 @@ export default function IncidentsView() {
                 </div>
               )}
 
-              {/* SOAR TAB */}
-              {activeTab === 'soar' && (
+              {/* THREAT INTEL TAB */}
+              {activeTab === 'threatintel' && (
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-indigo-400" /> Threat Intelligence
+                  </h4>
+                  <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-6">
+                    <div className="flex items-start gap-3">
+                      <Unplug className="w-5 h-5 text-slate-500 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-slate-200">No threat-intelligence integration connected</p>
+                        <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                          Live IP/domain/hash reputation lookups require a connected TI feed (e.g. VirusTotal, MISP, AlienVault OTX).
+                          Reputation data is never fabricated — connect an integration to enable live lookups for this incident's indicators.
+                        </p>
+                        <button
+                          onClick={() => setActivePage('settings')}
+                          className="mt-3 flex items-center gap-1.5 text-[11px] font-bold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-800/40 px-3 py-2 rounded-lg transition-all"
+                        >
+                          <Plug className="w-3.5 h-3.5" /> Connect an integration
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {recommendedTriage?.threatIntel && (
+                    <div className="bg-slate-950/40 border border-slate-800 rounded-xl p-4">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">AI-correlated threat context</p>
+                      <p className="text-[11px] text-slate-400 leading-relaxed whitespace-pre-line">
+                        {typeof recommendedTriage.threatIntel === 'string'
+                          ? recommendedTriage.threatIntel
+                          : JSON.stringify(recommendedTriage.threatIntel, null, 2)}
+                      </p>
+                      <p className="text-[9px] text-slate-600 mt-2">From the AI triage pipeline — not a live TI lookup.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* RESPONSE TAB */}
+              {activeTab === 'response' && (
                 <div className="space-y-5">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Zap className="w-4 h-4 text-blue-500" /> Containment Playbooks
@@ -1311,6 +1581,138 @@ export default function IncidentsView() {
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Response approvals */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-amber-400" /> AI Response Actions Awaiting Approval
+                      </h4>
+                      <button
+                        onClick={() => setActivePage('approvals')}
+                        className="text-[10px] font-bold text-blue-400 hover:text-blue-300 flex items-center gap-0.5"
+                      >
+                        Open Response Center <ChevronRight className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {approvalsLoading ? (
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 py-4">
+                        <Loader2 className="w-4 h-4 animate-spin" /> Loading approvals…
+                      </div>
+                    ) : incidentApprovals.length === 0 ? (
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 py-4 bg-slate-950/40 border border-slate-800 rounded-xl px-4">
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                        No pending response actions for this incident.
+                      </div>
+                    ) : (
+                      incidentApprovals.map((ap: any) => (
+                        <div key={ap.id} className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-200">{ap.playbook_name || ap.action_type || `Approval #${ap.id}`}</p>
+                            <p className="text-[10px] text-slate-500 mt-1 truncate">
+                              {ap.context?.reason || ap.description || 'AI-proposed response action'}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <button
+                              onClick={() => decideIncidentApproval(ap.id, 'approve')}
+                              className="text-[10px] font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800/40 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => decideIncidentApproval(ap.id, 'reject')}
+                              className="text-[10px] font-bold bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-800/40 px-3 py-1.5 rounded-lg transition-all"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* REPORTS TAB */}
+              {activeTab === 'reports' && (
+                <div className="space-y-4">
+                  <style>{`
+                    @media print {
+                      body * { visibility: hidden; }
+                      .incident-print-report, .incident-print-report * { visibility: visible; }
+                      .incident-print-report { position: absolute; left: 0; top: 0; width: 100%; background: white !important; color: black !important; }
+                      .incident-print-report * { color: black !important; border-color: #ddd !important; background: white !important; }
+                    }
+                  `}</style>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Download className="w-3.5 h-3.5 text-emerald-400" /> Incident Report
+                    </h4>
+                    <button
+                      onClick={handlePrintReport}
+                      className="flex items-center gap-1.5 text-[11px] font-bold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-800/40 px-3 py-2 rounded-lg transition-all"
+                    >
+                      <Printer className="w-3.5 h-3.5" /> Print / Save PDF
+                    </button>
+                  </div>
+                  {selectedIncident && (
+                    <div className="incident-print-report bg-slate-950/40 border border-slate-800 rounded-xl p-6 space-y-4">
+                      <div className="border-b border-slate-800 pb-3">
+                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">EDYSOR Incident Report</p>
+                        <h3 className="text-base font-bold text-slate-100 mt-1">{selectedIncident.title}</h3>
+                        <p className="text-[10px] text-slate-500 mt-1">
+                          Incident {String(selectedIncident.id).slice(0, 8)} • Generated {new Date().toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                          ['Severity', selectedIncident.severity],
+                          ['Status', selectedIncident.status],
+                          ['Verdict', selectedIncident.verdict || '—'],
+                          ['Created', new Date(selectedIncident.timestamp).toLocaleString()],
+                        ].map(([k, v]) => (
+                          <div key={k}>
+                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">{k}</p>
+                            <p className="text-[11px] text-slate-200 mt-0.5">{v}</p>
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">AI Summary</p>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">
+                          {selectedIncident.llm_summary || 'No AI summary available.'}
+                        </p>
+                      </div>
+                      {predictedRisk && (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Predicted Risk</p>
+                          <p className="text-[11px] text-slate-300">
+                            Attack probability: {predictedRisk.attack_probability != null ? `${Math.round(predictedRisk.attack_probability * 100)}%` : '—'} •
+                            Severity: {predictedRisk.predicted_severity || '—'} •
+                            Anomaly: {predictedRisk.anomaly?.is_anomaly ? 'yes' : 'no'}
+                            <span className="text-slate-500"> (model: {predictedRisk.model_version || 'heuristic-v1'})</span>
+                          </p>
+                        </div>
+                      )}
+                      {selectedIncident.analyst_notes && (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Analyst Notes</p>
+                          <p className="text-[11px] text-slate-300 whitespace-pre-line">{selectedIncident.analyst_notes}</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Lifecycle</p>
+                        <p className="text-[11px] text-slate-300">
+                          Created: {new Date(selectedIncident.timestamp).toLocaleString()} •
+                          Resolved: {selectedIncident.resolved_at ? new Date(selectedIncident.resolved_at).toLocaleString() : '—'}
+                        </p>
+                      </div>
+                      <p className="text-[9px] text-slate-600 pt-2 border-t border-slate-800">
+                        Report generated from live incident data by EDYSOR. Timeline stages are derived from the incident record.
+                      </p>
                     </div>
                   )}
                 </div>

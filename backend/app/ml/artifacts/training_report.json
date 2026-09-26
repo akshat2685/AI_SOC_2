@@ -1,0 +1,60 @@
+{
+  "trained_on": "synthetic-soc-telemetry-v1",
+  "warning": "retrain on real tenant data before production use",
+  "n_samples": 20000,
+  "n_train": 16000,
+  "n_test": 4000,
+  "seed": 42,
+  "models": {
+    "triage_clf": {
+      "type": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 150,
+        "random_state": 42,
+        "class_weight": "balanced"
+      },
+      "target": "attack_type",
+      "accuracy": 0.995,
+      "macro_precision": 0.9582,
+      "macro_recall": 0.946,
+      "macro_f1": 0.9495,
+      "per_class_recall": {
+        "benign": 0.9981,
+        "brute_force": 1.0,
+        "c2_beacon": 0.9,
+        "exfiltration": 1.0,
+        "lateral_movement": 1.0,
+        "phishing": 0.92,
+        "ransomware": 0.75,
+        "unknown_anomaly": 1.0
+      }
+    },
+    "severity_clf": {
+      "type": "RandomForestClassifier",
+      "params": {
+        "n_estimators": 60,
+        "max_depth": 14,
+        "random_state": 42,
+        "class_weight": "balanced"
+      },
+      "target": "severity",
+      "accuracy": 0.705,
+      "macro_f1": 0.4262
+    },
+    "anomaly_iforest": {
+      "type": "IsolationForest",
+      "params": {
+        "contamination": 0.05,
+        "random_state": 42
+      },
+      "trained_on": "benign-only training rows (0-day story: learns normal, flags deviations)",
+      "n_benign_train_rows": 14880,
+      "detection_rate_unknown_anomaly_holdout": 0.925,
+      "false_positive_rate_benign_holdout": 0.061,
+      "n_unknown_holdout_rows": 40,
+      "n_benign_holdout_rows": 3720
+    }
+  },
+  "elapsed_seconds": 8.5,
+  "note_slim": "severity_clf retrained light (60 trees, depth 14) for deploy size; still synthetic"
+}

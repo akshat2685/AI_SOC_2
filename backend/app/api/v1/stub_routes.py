@@ -166,97 +166,140 @@ async def copilot_chat(
     }
 
 # ---------------------------------------------------------------------------
-# MITRE ATT&CK
+# MITRE ATT&CK (live dataset, bundled from MITRE CTI)
 # ---------------------------------------------------------------------------
+
+import json as _json
+import os as _os
+
+_ATTACK_PATH = _os.path.normpath(_os.path.join(
+    _os.path.dirname(_os.path.abspath(__file__)), "..", "..", "data", "attack_enterprise.json"))
+_ATTACK = None
+
+
+def _attack_data() -> dict:
+    """Lazy-load the bundled ATT&CK Enterprise dataset (degrades to empty)."""
+    global _ATTACK
+    if _ATTACK is None:
+        try:
+            with open(_ATTACK_PATH) as f:
+                _ATTACK = _json.load(f)
+        except (OSError, ValueError):
+            _ATTACK = {"techniques": [], "tactics": [], "mitigations": [],
+                       "technique_mitigations": {}, "retrieved_at": None,
+                       "source": "mitre-cti"}
+    return _ATTACK
+
+
+# Keyword -> technique mappings for alert rule names (kept from the curated build).
+RULE_MAPPINGS = [
+    {"rule_pattern": "powershell", "technique_id": "T1059.001"},
+    {"rule_pattern": "brute force", "technique_id": "T1110.001"},
+    {"rule_pattern": "failed login", "technique_id": "T1110"},
+    {"rule_pattern": "ransomware", "technique_id": "T1486"},
+    {"rule_pattern": "shadow copy", "technique_id": "T1490"},
+    {"rule_pattern": "mimikatz", "technique_id": "T1003.001"},
+    {"rule_pattern": "lsass", "technique_id": "T1003.001"},
+    {"rule_pattern": "lateral movement", "technique_id": "T1021"},
+    {"rule_pattern": "ssh", "technique_id": "T1021.004"},
+    {"rule_pattern": "rdp", "technique_id": "T1021"},
+    {"rule_pattern": "c2", "technique_id": "T1071"},
+    {"rule_pattern": "command and control", "technique_id": "T1071"},
+    {"rule_pattern": "exfiltration", "technique_id": "T1041"},
+    {"rule_pattern": "dns tunneling", "technique_id": "T1048"},
+    {"rule_pattern": "phishing", "technique_id": "T1566"},
+    {"rule_pattern": "port scan", "technique_id": "T1595"},
+    {"rule_pattern": "process injection", "technique_id": "T1055"},
+    {"rule_pattern": "credential dumping", "technique_id": "T1003"},
+]
+
+
+def _technique_summary(t: dict) -> dict:
+    tactics = t.get("tactics") or []
+    return {"id": t["id"], "name": t["name"],
+            "tactic": tactics[0] if tactics else "",
+            "description": t.get("description", "")}
+
 
 @router.get("/mitre/mappings")
 async def get_mitre_mappings(
+    limit: int = Query(100, ge=1, le=697, description="Page size (use with offset)"),
+    offset: int = Query(0, ge=0, description="Skip first N techniques"),
     _auth=Depends(require_roles_dual(READ_ROLES)),
 ):
-    """Curated MITRE ATT&CK Enterprise subset + rule-pattern mappings.
+    """Full MITRE ATT&CK Enterprise dataset + rule-pattern mappings.
 
-    This is a static, curated subset (not the full ATT&CK dataset) so the
-    endpoint works with zero external dependencies.
+    Techniques come from the bundled live pull of MITRE CTI
+    (backend/app/data/attack_enterprise.json), not a hand-curated subset.
+    Paginated: the full 697-technique payload is ~480KB, which is flaky
+    over HTTP/1.1 through the CDN — page it instead of fetching all at once.
     """
-    techniques = [
-        {"id": "T1059", "name": "Command and Scripting Interpreter", "tactic": "Execution",
-         "description": "Adversaries abuse command-line interpreters (PowerShell, cmd, bash) to execute commands and payloads."},
-        {"id": "T1059.001", "name": "PowerShell", "tactic": "Execution",
-         "description": "Adversaries use PowerShell to execute commands, download payloads, and evade defenses."},
-        {"id": "T1078", "name": "Valid Accounts", "tactic": "Persistence",
-         "description": "Adversaries obtain and abuse credentials of existing accounts to gain and keep access."},
-        {"id": "T1078.002", "name": "Valid Accounts: Domain Accounts", "tactic": "Persistence",
-         "description": "Compromised domain credentials used for lateral movement and persistence."},
-        {"id": "T1110", "name": "Brute Force", "tactic": "Credential Access",
-         "description": "Repeated authentication attempts to guess credentials."},
-        {"id": "T1110.001", "name": "Brute Force: Password Guessing", "tactic": "Credential Access",
-         "description": "Password guessing against login services such as SSH, RDP, or web apps."},
-        {"id": "T1133", "name": "External Remote Services", "tactic": "Persistence",
-         "description": "Use of external remote services (VPN, RDP, SSH) for persistent access."},
-        {"id": "T1021", "name": "Remote Services", "tactic": "Lateral Movement",
-         "description": "Use of remote services (RDP, SMB, WinRM, SSH) to move laterally."},
-        {"id": "T1021.004", "name": "Remote Services: SSH", "tactic": "Lateral Movement",
-         "description": "SSH used for lateral movement between hosts."},
-        {"id": "T1486", "name": "Data Encrypted for Impact", "tactic": "Impact",
-         "description": "Ransomware-style encryption of data to disrupt availability."},
-        {"id": "T1490", "name": "Inhibit System Recovery", "tactic": "Impact",
-         "description": "Deletion or disabling of backups and recovery mechanisms (e.g. shadow copies)."},
-        {"id": "T1041", "name": "Exfiltration Over C2 Channel", "tactic": "Exfiltration",
-         "description": "Data stolen over an existing command-and-control channel."},
-        {"id": "T1048", "name": "Exfiltration Over Alternative Protocol", "tactic": "Exfiltration",
-         "description": "Exfiltration over DNS, ICMP, or other non-standard protocols."},
-        {"id": "T1071", "name": "Application Layer Protocol", "tactic": "Command and Control",
-         "description": "C2 communication over common protocols (HTTP/S, DNS) to blend in."},
-        {"id": "T1071.001", "name": "Application Layer Protocol: Web Protocols", "tactic": "Command and Control",
-         "description": "C2 over HTTP/S to attacker-controlled infrastructure."},
-        {"id": "T1105", "name": "Ingress Tool Transfer", "tactic": "Command and Control",
-         "description": "Download of tools/payloads to the victim (curl, wget, certutil, bitsadmin)."},
-        {"id": "T1055", "name": "Process Injection", "tactic": "Defense Evasion",
-         "description": "Code injected into legitimate processes to evade detection."},
-        {"id": "T1036", "name": "Masquerading", "tactic": "Defense Evasion",
-         "description": "Malicious binaries renamed to look like legitimate system files."},
-        {"id": "T1003", "name": "OS Credential Dumping", "tactic": "Credential Access",
-         "description": "Dumping credentials from LSASS, SAM, or /etc/shadow (e.g. Mimikatz)."},
-        {"id": "T1003.001", "name": "OS Credential Dumping: LSASS Memory", "tactic": "Credential Access",
-         "description": "Credential material extracted from LSASS process memory."},
-        {"id": "T1083", "name": "File and Directory Discovery", "tactic": "Discovery",
-         "description": "Enumerating files and directories to find data of interest."},
-        {"id": "T1018", "name": "Remote System Discovery", "tactic": "Discovery",
-         "description": "Scanning the network to discover reachable remote systems."},
-        {"id": "T1595", "name": "Active Scanning", "tactic": "Reconnaissance",
-         "description": "Probing victim infrastructure (port scans, vulnerability scans)."},
-        {"id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "Initial Access",
-         "description": "Exploiting internet-facing apps (web servers, VPN appliances)."},
-        {"id": "T1566", "name": "Phishing", "tactic": "Initial Access",
-         "description": "Phishing emails/links delivering malware or harvesting credentials."},
-    ]
-    rule_mappings = [
-        {"rule_pattern": "powershell", "technique_id": "T1059.001"},
-        {"rule_pattern": "brute force", "technique_id": "T1110.001"},
-        {"rule_pattern": "failed login", "technique_id": "T1110"},
-        {"rule_pattern": "ransomware", "technique_id": "T1486"},
-        {"rule_pattern": "shadow copy", "technique_id": "T1490"},
-        {"rule_pattern": "mimikatz", "technique_id": "T1003.001"},
-        {"rule_pattern": "lsass", "technique_id": "T1003.001"},
-        {"rule_pattern": "lateral movement", "technique_id": "T1021"},
-        {"rule_pattern": "ssh", "technique_id": "T1021.004"},
-        {"rule_pattern": "rdp", "technique_id": "T1021"},
-        {"rule_pattern": "c2", "technique_id": "T1071"},
-        {"rule_pattern": "command and control", "technique_id": "T1071"},
-        {"rule_pattern": "exfiltration", "technique_id": "T1041"},
-        {"rule_pattern": "dns tunneling", "technique_id": "T1048"},
-        {"rule_pattern": "phishing", "technique_id": "T1566"},
-        {"rule_pattern": "port scan", "technique_id": "T1595"},
-        {"rule_pattern": "process injection", "technique_id": "T1055"},
-        {"rule_pattern": "credential dumping", "technique_id": "T1003"},
-    ]
+    data = _attack_data()
+    techniques = [_technique_summary(t) for t in data["techniques"]]
+    total = len(techniques)
+    page = techniques[offset:offset + limit]
     return {
-        "techniques": techniques,
-        "rule_mappings": rule_mappings,
-        "count": len(techniques),
-        "source": "curated-subset",
-        "note": "Curated subset of MITRE ATT&CK Enterprise for offline use; not the full dataset.",
+        "techniques": page,
+        "rule_mappings": RULE_MAPPINGS,
+        "count": len(page),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "source": data.get("source", "mitre-cti"),
+        "retrieved_at": data.get("retrieved_at"),
+        "note": ("Full MITRE ATT&CK Enterprise dataset (techniques incl. "
+                 "sub-techniques). Re-run the ATT&CK pipeline to refresh."),
     }
+
+
+@router.get("/mitre/techniques")
+async def search_techniques(
+    q: str = Query("", description="Substring over id, name, description"),
+    tactic: str = Query("", description="Tactic name filter"),
+    platform: str = Query("", description="Platform filter, e.g. Windows"),
+    limit: int = Query(50, ge=1, le=200),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    """Search the bundled ATT&CK Enterprise techniques."""
+    data = _attack_data()
+    ql, tl, pl = q.lower(), tactic.lower(), platform.lower()
+    out = []
+    for t in data["techniques"]:
+        if ql and ql not in f"{t['id']} {t['name']} {t.get('description', '')}".lower():
+            continue
+        if tl and not any(tl in x.lower() for x in (t.get("tactics") or [])):
+            continue
+        if pl and not any(pl in x.lower() for x in (t.get("platforms") or [])):
+            continue
+        out.append({**_technique_summary(t),
+                    "tactics": t.get("tactics") or [],
+                    "platforms": t.get("platforms") or []})
+        if len(out) >= limit:
+            break
+    return {"techniques": out, "count": len(out), "total": len(data["techniques"])}
+
+
+@router.get("/mitre/techniques/{technique_id}")
+async def get_technique(
+    technique_id: str,
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    """Technique detail with mapped mitigations."""
+    data = _attack_data()
+    tid = technique_id.upper()
+    t = next((x for x in data["techniques"] if x["id"] == tid), None)
+    if not t:
+        raise HTTPException(status_code=404, detail=f"Technique '{technique_id}' not found.")
+    mids = (data.get("technique_mitigations") or {}).get(tid, [])
+    mit_by_id = {m["id"]: m for m in data.get("mitigations", [])}
+    return {
+        **_technique_summary(t),
+        "tactics": t.get("tactics") or [],
+        "platforms": t.get("platforms") or [],
+        "data_sources": t.get("data_sources") or [],
+        "mitigations": [mit_by_id[m] for m in mids if m in mit_by_id],
+    }
+
 
 # ---------------------------------------------------------------------------
 # Audit Log

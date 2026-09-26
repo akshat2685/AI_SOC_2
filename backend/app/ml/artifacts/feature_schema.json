@@ -1,0 +1,52 @@
+{
+  "feature_columns": [
+    "hour_of_day",
+    "day_of_week",
+    "off_hours",
+    "failed_logins_1h",
+    "unique_dst_ips_1h",
+    "bytes_out_mb_1h",
+    "new_process_rarity",
+    "dns_query_entropy",
+    "alert_count_1h",
+    "asset_workstation",
+    "asset_server",
+    "asset_database"
+  ],
+  "numeric_features": [
+    "hour_of_day",
+    "day_of_week",
+    "off_hours",
+    "failed_logins_1h",
+    "unique_dst_ips_1h",
+    "bytes_out_mb_1h",
+    "new_process_rarity",
+    "dns_query_entropy",
+    "alert_count_1h"
+  ],
+  "categorical": {
+    "src_asset_type": [
+      "workstation",
+      "server",
+      "database"
+    ],
+    "one_hot_prefix": "asset_"
+  },
+  "attack_type_classes": [
+    "benign",
+    "brute_force",
+    "c2_beacon",
+    "exfiltration",
+    "lateral_movement",
+    "phishing",
+    "ransomware",
+    "unknown_anomaly"
+  ],
+  "severity_classes": [
+    "critical",
+    "high",
+    "low",
+    "medium"
+  ],
+  "note": "Feature order and encodings for inference. Rebuild the feature vector in feature_columns order before calling predict(). Trained on synthetic data only."
+}

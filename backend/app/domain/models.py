@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, Text, Enum, JSON, Boolean, Uuid, Time
+from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, Text, Enum, JSON, Boolean, Uuid, Time, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 import enum
@@ -71,6 +71,10 @@ class Tenant(Base):
     webhook_endpoints: Mapped[List["WebhookEndpoint"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     notification_history: Mapped[List["NotificationHistory"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     key_store: Mapped[Optional["TenantKeyStore"]] = relationship(back_populates="tenant", cascade="all, delete-orphan", uselist=False)
+    integrations: Mapped[List["Integration"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+    endpoint_agents: Mapped[List["EndpointAgent"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+    onboarding_state: Mapped[Optional["OnboardingState"]] = relationship(back_populates="tenant", cascade="all, delete-orphan", uselist=False)
+    security_events: Mapped[List["SecurityEvent"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 class User(Base):
     __tablename__ = "users"
 
@@ -336,3 +340,166 @@ class ComplianceViolation(Base):
 
     tenant: Mapped[Tenant] = relationship()
     rule: Mapped[ComplianceRule] = relationship()
+
+
+# ---------------------------------------------------------------------------
+# Integrations platform (EDYSOR connectivity layer)
+# ---------------------------------------------------------------------------
+
+class IntegrationCategory(str, enum.Enum):
+    ENDPOINT = "endpoint"
+    SIEM = "siem"
+    EDR = "edr"
+    FIREWALL = "firewall"
+    IAM = "iam"
+    CLOUD = "cloud"
+    NETWORK = "network"
+    APPLICATION = "application"
+    EMAIL = "email"
+    TICKETING = "ticketing"
+    COMMUNICATION = "communication"
+    THREAT_INTEL = "threat_intel"
+    CUSTOM = "custom"
+
+
+class IntegrationStatus(str, enum.Enum):
+    CONNECTED = "connected"
+    DEGRADED = "degraded"
+    DISCONNECTED = "disconnected"
+    AUTH_ERROR = "auth_error"
+    NO_DATA = "no_data"
+    CONFIG_ERROR = "config_error"
+
+
+class AgentPlatform(str, enum.Enum):
+    WINDOWS = "windows"
+    MACOS = "macos"
+    LINUX = "linux"
+
+
+class AgentStatus(str, enum.Enum):
+    ONLINE = "online"
+    OFFLINE = "offline"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+    OUTDATED = "outdated"
+    UNREGISTERED = "unregistered"
+
+
+class Integration(Base):
+    """A connected security product / data source for a tenant.
+
+    `config` holds only non-secret fields. Raw credentials (passwords,
+    tokens, API keys) are NEVER persisted here — the `has_credentials`
+    flag records that secrets were supplied at connect time; actual
+    secret storage is delegated to the tenant key store.
+    """
+    __tablename__ = "integrations"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255))
+    category: Mapped[IntegrationCategory] = mapped_column(Enum(IntegrationCategory, native_enum=False))
+    connector_key: Mapped[str] = mapped_column(String(100), index=True)
+    status: Mapped[IntegrationStatus] = mapped_column(
+        Enum(IntegrationStatus, native_enum=False), default=IntegrationStatus.DISCONNECTED
+    )
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    has_credentials: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_event_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    events_received: Mapped[int] = mapped_column(Integer, default=0)
+    events_rejected: Mapped[int] = mapped_column(Integer, default=0)
+    error_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant: Mapped[Tenant] = relationship(back_populates="integrations")
+
+
+class EndpointAgent(Base):
+    """An enrolled EDYSOR endpoint agent (Windows/macOS/Linux).
+
+    Agents are never identified by hostname alone — `device_id` is a
+    server-generated unique identity. Effective online/offline status is
+    computed from `last_heartbeat_at` at read time.
+    """
+    __tablename__ = "endpoint_agents"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
+    device_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    hostname: Mapped[str] = mapped_column(String(255))
+    platform: Mapped[AgentPlatform] = mapped_column(Enum(AgentPlatform, native_enum=False))
+    os_version: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    arch: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    agent_version: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    status: Mapped[AgentStatus] = mapped_column(
+        Enum(AgentStatus, native_enum=False), default=AgentStatus.UNREGISTERED
+    )
+    last_heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    registered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    tenant: Mapped[Tenant] = relationship(back_populates="endpoint_agents")
+
+
+class OnboardingState(Base):
+    """Per-tenant progress through the EDYSOR onboarding wizard."""
+    __tablename__ = "onboarding_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False, unique=True)
+    current_step: Mapped[int] = mapped_column(Integer, default=0)
+    completed_steps: Mapped[list] = mapped_column(JSON, default=list)
+    skipped_steps: Mapped[list] = mapped_column(JSON, default=list)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant: Mapped[Tenant] = relationship(back_populates="onboarding_state", uselist=False)
+
+
+class EventType(str, enum.Enum):
+    PROCESS = "process"
+    NETWORK = "network"
+    FILE = "file"
+    AUTH = "auth"
+    DNS = "dns"
+
+
+class SeverityHint(str, enum.Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class SecurityEvent(Base):
+    """A normalized security telemetry event from an endpoint agent.
+
+    One row per observed event, in a single OS-agnostic schema: the
+    `event_type` selects which typed section lives in `payload`
+    (process / network / file / auth / dns). `raw` holds the sensor's
+    untouched original record for forensics. Nothing is enriched or
+    invented here — what the sensor sent is what is stored.
+    """
+    __tablename__ = "security_events"
+    __table_args__ = (
+        Index("ix_security_events_tenant_observed", "tenant_id", "observed_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
+    device_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    event_type: Mapped[EventType] = mapped_column(Enum(EventType, native_enum=False))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True, nullable=False)
+    severity_hint: Mapped[SeverityHint] = mapped_column(
+        Enum(SeverityHint, native_enum=False), default=SeverityHint.INFO
+    )
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    raw: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    tenant: Mapped[Tenant] = relationship(back_populates="security_events")

@@ -1,0 +1,18 @@
+[Unit]
+Description=EDYSOR endpoint sensor (reference, user-space)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Full visibility (other users' processes, /var/log/auth.log) needs root.
+# Running as a non-root user works but sees less; that is an honest tradeoff.
+User=root
+ExecStart=/usr/bin/python3 /opt/edysor-sensor/edysor_sensor.py --config /etc/edysor/sensor.json
+Restart=always
+RestartSec=10
+# Config holds an API key: keep it root-only.
+#   chmod 600 /etc/edysor/sensor.json ; chown root:root /etc/edysor/sensor.json
+
+[Install]
+WantedBy=multi-user.target

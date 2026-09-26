@@ -23,7 +23,9 @@ import {
   Bell,
   Zap,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  Rocket,
+  Plug
 } from 'lucide-react';
 
 interface ShellProps {
@@ -171,6 +173,16 @@ export default function DashboardShell({ children }: ShellProps) {
           premium: res.premium
         });
       }
+      // Post-login landing: SOC Command Center once onboarding is complete.
+      // The onboarding wizard (built separately) sets localStorage 'edysor_onboarded'='true'
+      // on completion. Until then, keep the legacy dashboard landing.
+      try {
+        if (typeof window !== 'undefined' && window.localStorage.getItem('edysor_onboarded') === 'true') {
+          setActivePage('soc');
+        }
+      } catch {
+        /* localStorage unavailable — stay on default landing */
+      }
     } catch (err: any) {
       setLoginError(err.message || 'Authentication failed. Please verify credentials.');
     } finally {
@@ -250,9 +262,12 @@ export default function DashboardShell({ children }: ShellProps) {
   }
 
   const navItems = [
+    { id: 'soc', label: 'SOC Command Center', icon: Shield },
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'onboarding', label: 'Onboarding', icon: Rocket },
+    { id: 'integrations', label: 'Integrations', icon: Plug },
     { id: 'incidents', label: 'Incidents & Triage', icon: AlertTriangle },
-    { id: 'approvals', label: 'SOAR Approvals', icon: ShieldCheck },
+    { id: 'approvals', label: 'Response Center', icon: ShieldCheck },
     { id: 'graph', label: 'Digital Twin Graph', icon: Network },
     { id: 'memory', label: 'Memory Explorer', icon: Database },
     { id: 'executive', label: 'Executive Metrics', icon: BarChart3 },

@@ -149,6 +149,18 @@ export const api = {
     return request(`/api/v1/incidents/${id}/predict-risk`);
   },
 
+  // ML Inference (synthetic-trained v1 models)
+  getMLModels: async (): Promise<any> => {
+    return request('/api/v1/ml/models');
+  },
+
+  analyzeML: async (features: Record<string, any>): Promise<any> => {
+    return request('/api/v1/ml/analyze', {
+      method: 'POST',
+      body: JSON.stringify(features),
+    });
+  },
+
   getRecommendedTriage: async (id: number): Promise<unknown> => {
     return request(`/api/v1/incidents/${id}/recommended-triage`);
   },
@@ -297,6 +309,16 @@ export const api = {
     return request('/mitre/mappings');
   },
 
+  // SOC Command Center (EDYSOR home screen)
+  getSOCCommand: async (): Promise<any> => {
+    return request('/dashboard/soc-command');
+  },
+
+  // MITRE ATT&CK technique detail
+  getMitreTechnique: async (id: string): Promise<any> => {
+    return request(`/mitre/techniques/${encodeURIComponent(id)}`);
+  },
+
   // Audit Log
   getAuditLog: async (): Promise<any> => {
     return request('/audit-log');
@@ -323,5 +345,57 @@ export const api = {
 
   syncIntegrations: async (): Promise<any> => {
     return request('/api/v1/integrations/sync', { method: 'POST' });
+  },
+
+  // Integrations Center (connector catalog + tenant integrations)
+  getConnectorCatalog: async (): Promise<any> => {
+    return request('/api/v1/integrations/catalog');
+  },
+
+  listIntegrations: async (): Promise<any> => {
+    return request('/api/v1/integrations');
+  },
+
+  createIntegration: async (data: { name: string; category: string; connector_key: string; config: Record<string, string> }): Promise<any> => {
+    return request('/api/v1/integrations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  deleteIntegration: async (id: string | number): Promise<any> => {
+    return request(`/api/v1/integrations/${id}`, { method: 'DELETE' });
+  },
+
+  testIntegration: async (id: string | number): Promise<any> => {
+    return request(`/api/v1/integrations/${id}/test`, { method: 'POST' });
+  },
+
+  getIntegrationHealth: async (id: string | number): Promise<any> => {
+    return request(`/api/v1/integrations/${id}/health`);
+  },
+
+  // Onboarding wizard state
+  getOnboardingState: async (): Promise<any> => {
+    return request('/api/v1/onboarding/state');
+  },
+
+  updateOnboardingState: async (data: { current_step?: number; completed_steps?: number[]; skipped_steps?: number[] }): Promise<any> => {
+    return request('/api/v1/onboarding/state', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  // Endpoint agents
+  registerAgent: async (data: { hostname: string; platform: string; os_version?: string; arch?: string; agent_version?: string }): Promise<any> => {
+    return request('/api/v1/agents/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  listAgents: async (): Promise<any> => {
+    return request('/api/v1/agents');
   },
 };
