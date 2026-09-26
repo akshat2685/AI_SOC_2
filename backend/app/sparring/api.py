@@ -333,13 +333,17 @@ async def run_intel_pass(
             # Training rows are best-effort; the scenarios above are safe.
             pass
 
-    audit_logger.info("twin_intel_pass", extra={
-        "trace_id": current_trace_id(), "user_id": current_user_id(),
-        "tenant_id": current_tenant_id(),
-        "scenarios": len(scenarios),
-        "evasions": len(training_rows),
-        "training_rows": recorded,
-    })
+    audit_logger.emit(
+        action="twin_intel_pass",
+        tenant_id=current_tenant_id.get(),
+        user_id=current_user_id.get(),
+        trace_id=current_trace_id.get(),
+        details={
+            "scenarios": len(scenarios),
+            "evasions": len(training_rows),
+            "training_rows": recorded,
+        },
+    )
     return {
         "simulated": True,
         "scenarios_run": len(scenarios),
