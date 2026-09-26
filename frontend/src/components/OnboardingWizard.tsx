@@ -70,18 +70,24 @@ function installSnippet(platform: string): string {
   const base = backendUrlForSnippet();
   if (platform === 'windows') {
     return [
+      '# EDYSOR sensor for Windows — review before running.',
+      '# Requires Python 3.10+ from python.org; the `py` launcher must be on PATH.',
       '$env:EDYSOR_URL="' + base + '"',
-      '$env:EDYSOR_API_KEY="<paste-api-key>"  # Settings -> API Keys (sent as X-API-Key header)',
+      'mkdir "$env:USERPROFILE\\.local\\share\\edysor-sensor" -Force | Out-Null',
+      'cd "$env:USERPROFILE\\.local\\share\\edysor-sensor"',
+      'Invoke-WebRequest -Uri "$env:EDYSOR_URL/api/v1/agents/sensor/download/edysor_sensor.py" -OutFile edysor_sensor.py',
+      'Invoke-WebRequest -Uri "$env:EDYSOR_URL/api/v1/agents/sensor/download/requirements-windows.txt" -OutFile requirements-windows.txt',
+      'py -m pip install -r requirements-windows.txt',
       '',
-      '# Register this device via the live /agents/register endpoint.',
-      '# The Windows telemetry sensor ships in a later release.',
-      'Invoke-RestMethod -Method Post `',
-      '  -Uri "$env:EDYSOR_URL/api/v1/agents/register" `',
-      '  -Headers @{"X-API-Key"=$env:EDYSOR_API_KEY} `',
-      '  -ContentType "application/json" `',
-      '  -Body (@{hostname=$env:COMPUTERNAME; platform="windows"; `',
-      '    os_version=(Get-CimInstance Win32_OperatingSystem).Version; `',
-      '    arch=$env:PROCESSOR_ARCHITECTURE; agent_version="0.1.0"} | ConvertTo-Json)',
+      '# 1. Create an API key in the product: Settings -> API Keys.',
+      '#    The sensor sends it in the X-API-Key header.',
+      '# 2. Write $env:USERPROFILE\\.config\\edysor\\sensor.json:',
+      '#      {"backend_url": "' + base + '", "api_key": "<paste-api-key>", "interval_seconds": 30}',
+      '# 3. Test:  py edysor_sensor.py --once',
+      '#    (Run PowerShell as Administrator for Windows Event Log telemetry —',
+      '#     logons, failed logons, and short-lived process creation.)',
+      '# 4. Run:   Start-Process py -ArgumentList "edysor_sensor.py" -WindowStyle Hidden',
+      '# First run registers the device and prints its device_id.',
     ].join('\n');
   }
   // Linux/macOS: the real reference sensor (sensor/edysor_sensor.py).
@@ -514,7 +520,7 @@ function EndpointsStep({ agents, regHost, setRegHost, regOs, setRegOs, regResult
                       {copied === os.key ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500">Create an API key under Settings → API Keys and paste it where indicated (sent as <span className="font-mono">X-API-Key</span> header). Linux/macOS installs the real telemetry sensor; Windows registers the device via the live <span className="font-mono">/agents/register</span> endpoint.</p>
+                  <p className="text-[10px] text-slate-500">Create an API key under Settings → API Keys and paste it where indicated (sent as <span className="font-mono">X-API-Key</span> header). All platforms install the real telemetry sensor (Windows: run PowerShell as Administrator for Event Log telemetry); the backend serves the installer files. <span className="font-mono">/agents/register</span> endpoint.</p>
                 </div>
               )}
 

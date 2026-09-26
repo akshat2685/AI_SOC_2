@@ -1,0 +1,4 @@
+# EDYSOR reference endpoint sensor — Windows dependencies
+psutil>=5.9
+requests>=2.28
+pywin32>=306
