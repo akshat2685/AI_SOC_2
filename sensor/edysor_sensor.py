@@ -947,12 +947,22 @@ def main() -> int:
     parser.add_argument("--register-only", action="store_true",
                         help="register the device and exit")
     parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument("--log-file", default=None,
+                        help="also write logs to this file (needed for headless/service runs)")
     args = parser.parse_args()
 
+    handlers: list[logging.Handler] = []
+    if sys.stdout is not None:  # None under pythonw.exe (no console)
+        handlers.append(logging.StreamHandler(sys.stdout))
+    if args.log_file:
+        handlers.append(logging.FileHandler(args.log_file, encoding="utf-8"))
+    if not handlers:  # last resort: never run silent
+        handlers.append(logging.FileHandler("sensor.log", encoding="utf-8"))
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
-        stream=sys.stdout)
+        handlers=handlers,
+        force=True)
 
     config_path = Path(args.config)
     spool_path = default_spool_path(config_path)

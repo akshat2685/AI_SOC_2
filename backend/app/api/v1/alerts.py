@@ -6,7 +6,7 @@ import structlog
 
 from app.infrastructure.database import get_db
 from app.domain.models import Alert, Incident, RoleEnum
-from app.core.auth import current_tenant_id
+from app.core.auth import current_tenant_id, current_user_id, current_trace_id
 from app.api.deps import require_roles_dual
 from app.application.audit_logger import audit_logger
 from app.api.middleware.rate_limit_middleware import limiter
@@ -55,14 +55,18 @@ async def get_alerts(
             {
                 "id": a.id,
                 "title": a.rule_name,
-                "severity": "MEDIUM",
+                # Real values when the Phase 2 engine wrote them; honest
+                # fallbacks for older rows (never invented specifics).
+                "severity": (a.severity or "MEDIUM").upper(),
                 "timestamp": a.timestamp.isoformat(),
-                "confidence": "80%",
-                "confidence_score": 80,
-                "attack_type": "UNKNOWN",
+                "confidence": f"{a.confidence}%" if a.confidence is not None else "n/a",
+                "confidence_score": a.confidence,
+                "attack_type": (a.evidence or {}).get("matched") or "UNKNOWN",
                 "evidence": a.description,
-                "attacker_ip": "0.0.0.0",  # nosec B104
-
+                "attacker_ip": ((a.evidence or {}).get("dst_ip")) or None,
+                "device_id": a.device_id,
+                "rule_id": a.rule_id,
+                "detector": (a.evidence or {}).get("detector"),
                 "verdict": "UNKNOWN",
                 "incident_id": a.incident_id,
                 "source": a.source,
@@ -271,3 +275,43 @@ async def trigger_investigation(
             status_code=500,
             detail="Failed to trigger investigation"
         )
+
+
+@router.post("/{id}/promote", status_code=status.HTTP_201_CREATED)
+@limiter.limit("30/minute")
+async def promote_alert_to_incident(
+    id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(WRITE_ROLES)),
+) -> Dict[str, Any]:
+    """Manually promote one alert to its own incident (analyst action).
+
+    This is the manual incident-creation path; the detection engine also
+    auto-correlates alerts into incidents during scans.
+    """
+    from app.detection.correlate import promote_alert
+
+    tenant_id = current_tenant_id.get() or 1
+    try:
+        incident = await promote_alert(db, tenant_id, id)
+        await db.commit()
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    except Exception as e:
+        logger.error("alert_promote_failed", alert_id=id, tenant_id=tenant_id, error=str(e))
+        raise HTTPException(status_code=500, detail="Failed to promote alert")
+
+    audit_logger.emit(
+        action="alert_promoted",
+        tenant_id=tenant_id,
+        user_id=current_user_id.get(),
+        trace_id=current_trace_id.get(),
+        details={"alert_id": id, "incident_id": incident.id},
+    )
+    return {
+        "incident_id": incident.id,
+        "alert_id": id,
+        "title": incident.title,
+        "status": incident.status.value if hasattr(incident.status, "value") else incident.status,
+    }
