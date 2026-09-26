@@ -22,7 +22,8 @@ import {
   Radio,
   Bell,
   Zap,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 
 interface ShellProps {
@@ -251,6 +252,7 @@ export default function DashboardShell({ children }: ShellProps) {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'incidents', label: 'Incidents & Triage', icon: AlertTriangle },
+    { id: 'approvals', label: 'SOAR Approvals', icon: ShieldCheck },
     { id: 'graph', label: 'Digital Twin Graph', icon: Network },
     { id: 'memory', label: 'Memory Explorer', icon: Database },
     { id: 'executive', label: 'Executive Metrics', icon: BarChart3 },

@@ -303,8 +303,17 @@ export const api = {
   },
 
   // Approvals
-  getApprovals: async (): Promise<any> => {
-    return request('/approvals');
+  getApprovals: async (status?: string): Promise<any> => {
+    const qs = status && status !== 'ALL' ? `?status=${encodeURIComponent(status)}` : '';
+    return request(`/approvals${qs}`);
+  },
+
+  approveApproval: async (id: number): Promise<any> => {
+    return request(`/approvals/${id}/approve`, { method: 'POST' });
+  },
+
+  rejectApproval: async (id: number): Promise<any> => {
+    return request(`/approvals/${id}/reject`, { method: 'POST' });
   },
 
   // Integrations Status & Sync

@@ -8,7 +8,9 @@ import {
   Play, 
   Trash2, 
   AlertTriangle, 
-  Compass 
+  Compass,
+  Crosshair,
+  Route
 } from 'lucide-react';
 
 export default function AttackGraphView() {
@@ -23,6 +25,26 @@ export default function AttackGraphView() {
   const [simResults, setSimResults] = useState<any>(null);
   const [runningSim, setRunningSim] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
+
+  // Blast radius state
+  const [blastNodeId, setBlastNodeId] = useState<string>('');
+  const [maxHops, setMaxHops] = useState<number>(3);
+  const [blastResult, setBlastResult] = useState<any>(null);
+  const [runningBlast, setRunningBlast] = useState(false);
+
+  // Attack paths state
+  const [pathFrom, setPathFrom] = useState<string>('');
+  const [pathTo, setPathTo] = useState<string>('');
+  const [pathResult, setPathResult] = useState<any>(null);
+  const [runningPaths, setRunningPaths] = useState(false);
+
+  // Prefill analysis inputs when a node is clicked on the graph
+  useEffect(() => {
+    if (selectedNode?.id) {
+      setBlastNodeId((prev) => prev || selectedNode.id);
+      setPathFrom((prev) => prev || selectedNode.id);
+    }
+  }, [selectedNode]);
 
   // Dynamically import Cytoscape on the client side
   useEffect(() => {
@@ -208,6 +230,7 @@ export default function AttackGraphView() {
     };
 
     initGraph();
+
     return () => {
       active = false;
       if (timer) clearTimeout(timer);
@@ -313,6 +336,73 @@ export default function AttackGraphView() {
     }
   };
 
+
+  const handleBlastRadius = async () => {
+    if (!blastNodeId.trim()) return;
+    setRunningBlast(true);
+    setBlastResult(null);
+    setLogs(prev => [`Blast: Computing BFS blast radius from ${blastNodeId.trim()} (max ${maxHops} hops)...`, ...prev]);
+    try {
+      const res = await api.getBlastRadius(blastNodeId.trim(), 'Host', maxHops);
+      setBlastResult(res);
+      // Highlight reached nodes on the graph
+      if (cyRef.current && res.nodes) {
+        cyRef.current.elements().removeStyle();
+        res.nodes.forEach((n: any) => {
+          cyRef.current.$(`#${n.id}`).style({
+            'background-color': '#f97316',
+            'border-color': '#fdba74',
+            'border-width': 2.5
+          });
+        });
+        cyRef.current.$(`#${res.node_id}`).style({
+          'background-color': '#ef4444',
+          'border-color': '#fca5a5',
+          'border-width': 3.5
+        });
+      }
+      setLogs(prev => [
+        `Blast: ${res.nodes_affected} node(s) reachable, score ${Math.round((res.blast_radius_score || 0) * 100)}%. Critical reached: ${(res.critical_assets_reached || []).length}.`,
+        ...prev
+      ]);
+    } catch (e: any) {
+      setLogs(prev => [`Blast Error: ${e.message}`, ...prev]);
+    } finally {
+      setRunningBlast(false);
+    }
+  };
+
+  const handleAttackPaths = async () => {
+    if (!pathFrom.trim() || !pathTo.trim()) return;
+    setRunningPaths(true);
+    setPathResult(null);
+    setLogs(prev => [`Paths: Finding attack paths ${pathFrom.trim()} → ${pathTo.trim()}...`, ...prev]);
+    try {
+      const res = await api.getAttackPaths(pathFrom.trim(), pathTo.trim());
+      setPathResult(res);
+      // Highlight the first (shortest) path on the graph
+      if (cyRef.current && res.paths && res.paths.length > 0) {
+        cyRef.current.elements().removeStyle();
+        res.paths[0].forEach((id: string) => {
+          cyRef.current.$(`#${id}`).style({
+            'background-color': '#8b5cf6',
+            'border-color': '#c4b5fd',
+            'border-width': 2.5
+          });
+        });
+      }
+      setLogs(prev => [
+        res.path_count > 0
+          ? `Paths: ${res.path_count} shortest path(s), ${res.shortest_hops} hop(s).`
+          : `Paths: no path exists between the nodes.`,
+        ...prev
+      ]);
+    } catch (e: any) {
+      setLogs(prev => [`Paths Error: ${e.message}`, ...prev]);
+    } finally {
+      setRunningPaths(false);
+    }
+  };
   return (
     <div className="h-[calc(100vh-4rem)] flex overflow-hidden">
       
@@ -414,6 +504,141 @@ export default function AttackGraphView() {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Blast Radius Analysis */}
+        <div className="p-5 border-b border-slate-800 space-y-4">
+          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <Crosshair className="w-4 h-4 text-orange-500" /> Blast Radius Analysis
+          </h3>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Compromised Node ID</label>
+              <input
+                type="text"
+                value={blastNodeId}
+                onChange={e => setBlastNodeId(e.target.value)}
+                placeholder="e.g. ws-001 (click a node to prefill)"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-orange-500 transition-all text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Max Hops ({maxHops})</label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="1"
+                value={maxHops}
+                onChange={e => setMaxHops(parseInt(e.target.value, 10))}
+                className="w-full h-1 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-orange-500"
+              />
+            </div>
+
+            <button
+              onClick={handleBlastRadius}
+              disabled={!blastNodeId.trim() || runningBlast}
+              className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-orange-900/10 active:scale-[0.98]"
+            >
+              <Crosshair className="w-3.5 h-3.5" /> {runningBlast ? 'Computing...' : 'Compute Blast Radius'}
+            </button>
+          </div>
+
+          {blastResult && (
+            <div className="space-y-2 text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-lg">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Blast Score</span>
+                  <p className="text-lg font-bold text-orange-400 mt-1">{Math.round((blastResult.blast_radius_score || 0) * 100)}%</p>
+                </div>
+                <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-lg">
+                  <span className="text-[10px] text-slate-500 uppercase font-bold">Nodes Reached</span>
+                  <p className="text-lg font-bold text-orange-400 mt-1">{blastResult.nodes_affected}</p>
+                </div>
+              </div>
+              {blastResult.critical_assets_reached?.length > 0 && (
+                <div className="bg-red-950/30 border border-red-800/40 rounded-lg p-2.5">
+                  <span className="text-[10px] text-red-400 uppercase font-bold">Critical assets in blast radius</span>
+                  <div className="mt-1 space-y-0.5">
+                    {blastResult.critical_assets_reached.map((h: string) => (
+                      <p key={h} className="font-mono text-[10px] text-red-300 truncate">{h}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-[10px] text-slate-600">Model: {blastResult.model || 'heuristic-bfs-v1'} · BFS over asset topology</p>
+            </div>
+          )}
+        </div>
+
+        {/* Attack Path Finder */}
+        <div className="p-5 border-b border-slate-800 space-y-4">
+          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <Route className="w-4 h-4 text-violet-500" /> Attack Path Finder
+          </h3>
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">From Node</label>
+              <input
+                type="text"
+                value={pathFrom}
+                onChange={e => setPathFrom(e.target.value)}
+                placeholder="source node id"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-violet-500 transition-all text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">To Node</label>
+              <input
+                type="text"
+                value={pathTo}
+                onChange={e => setPathTo(e.target.value)}
+                placeholder="target node id"
+                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-mono focus:outline-none focus:border-violet-500 transition-all text-slate-200 placeholder:text-slate-600"
+              />
+            </div>
+
+            <button
+              onClick={handleAttackPaths}
+              disabled={!pathFrom.trim() || !pathTo.trim() || runningPaths}
+              className="w-full bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-violet-900/10 active:scale-[0.98]"
+            >
+              <Route className="w-3.5 h-3.5" /> {runningPaths ? 'Searching...' : 'Find Attack Paths'}
+            </button>
+          </div>
+
+          {pathResult && (
+            <div className="space-y-2 text-xs">
+              {pathResult.path_count > 0 ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-lg">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Paths Found</span>
+                      <p className="text-lg font-bold text-violet-400 mt-1">{pathResult.path_count}</p>
+                    </div>
+                    <div className="bg-slate-950 border border-slate-850 p-2.5 rounded-lg">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold">Shortest</span>
+                      <p className="text-lg font-bold text-violet-400 mt-1">{pathResult.shortest_hops} hops</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-950 border border-slate-850 rounded-lg p-2.5 space-y-1.5 max-h-40 overflow-y-auto">
+                    {pathResult.paths.map((p: string[], i: number) => (
+                      <p key={i} className="font-mono text-[10px] text-slate-400 leading-relaxed break-all">
+                        <span className="text-violet-500 font-bold">{i + 1}.</span> {p.join(' → ')}
+                      </p>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-[11px] text-slate-500 bg-slate-950/60 border border-dashed border-slate-800 rounded-lg p-3 text-center">
+                  {pathResult.message || 'No path exists between the nodes.'}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Simulation Output Stats */}
