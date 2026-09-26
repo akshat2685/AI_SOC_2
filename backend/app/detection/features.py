@@ -4,14 +4,23 @@ Pure functions over plain event dicts. The feature names match
 backend/app/ml/artifacts/feature_schema.json exactly; anything the sensor
 cannot observe (bytes, DNS) is honestly 0, never invented.
 
-The anomaly model (IsolationForest, synthetic-v1) was fit on benign-only
-traffic. Findings from it are labeled detector="ml-anomaly-v1" with the
-model version attached, so nobody mistakes them for signature detections.
+The anomaly model (IsolationForest) was fit on benign-only traffic. Findings
+from it are labeled detector="ml-anomaly-v1" with the model version
+attached, so nobody mistakes them for signature detections.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
+from .rules import (
+    # Private names, imported deliberately: the anomaly features must use the
+    # exact same signal definitions as the rules, with zero drift.
+    _PERSISTENCE_MARKERS,
+    _SUSPICIOUS_CMDLINE,
+    _COMMON_OUTBOUND_PORTS,
+    _is_public_ip,
+)
 
 ANOMALY_MIN_EVENTS = 5  # don't score near-empty windows: noise, not signal
 
@@ -68,6 +77,9 @@ def build_hourly_features(
     dst_ips: set[str] = set()
     proc_names: list[str] = []
     new_proc = 0
+    uncommon_ports = 0
+    persistence_hits = 0
+    sus_cmdline_hits = 0
 
     for e in window_events:
         et = e.get("event_type")
@@ -79,6 +91,13 @@ def build_hourly_features(
             n = _section(e)
             if n.get("dst_ip"):
                 dst_ips.add(str(n["dst_ip"]))
+            port = n.get("dst_port")
+            if (
+                isinstance(port, int)
+                and port not in _COMMON_OUTBOUND_PORTS
+                and _is_public_ip(str(n.get("dst_ip") or ""))
+            ):
+                uncommon_ports += 1
         elif et == "process":
             p = _section(e)
             name = str(p.get("name") or "").lower()
@@ -86,6 +105,15 @@ def build_hourly_features(
                 proc_names.append(name)
                 if name not in known_process_names:
                     new_proc += 1
+            cmd = p.get("cmdline") or []
+            cmd_text = " ".join(str(x) for x in cmd) if isinstance(cmd, list) else str(cmd)
+            if any(rx.search(cmd_text) for rx, _ in _SUSPICIOUS_CMDLINE):
+                sus_cmdline_hits += 1
+        elif et == "file":
+            f = _section(e)
+            path = str(f.get("path") or "").lower()
+            if any(m in path for m in _PERSISTENCE_MARKERS):
+                persistence_hits += 1
 
     new_process_rarity = (new_proc / len(proc_names)) if proc_names else 0.0
 
@@ -99,5 +127,8 @@ def build_hourly_features(
         "new_process_rarity": round(new_process_rarity, 3),
         "dns_query_entropy": 0.0,  # no DNS capture yet; never invented
         "alert_count_1h": float(alert_count_1h),
+        "uncommon_port_hits_1h": float(uncommon_ports),
+        "persistence_events_1h": float(persistence_hits),
+        "suspicious_cmdline_hits_1h": float(sus_cmdline_hits),
         "src_asset_type": "workstation",
     }
