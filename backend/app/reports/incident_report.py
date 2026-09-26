@@ -95,6 +95,11 @@ RULE_MITRE: dict[str, tuple[str | None, str | None, str | None, str]] = {
         "T1071", "Command and Control", "Application Layer Protocol",
         "connection to infrastructure present in the threat-intel feed",
     ),
+    "known-malicious-connection": (
+        None, None, None,
+        "unmapped — destination is known-malicious per the intel feed but not "
+        "specifically classified as C2; no technique attribution claimed",
+    ),
     "first-seen-binary": (
         None, None, None,
         "unmapped — behavioral observation (new binary executed), "
@@ -114,6 +119,7 @@ _RULE_SUMMARIES: dict[str, str] = {
     "rare-outbound-port": "outbound connection(s) to public IPs on uncommon ports",
     "brute-force-auth": "brute-force authentication attempt(s)",
     "known-c2-connection": "connection(s) to known malicious infrastructure (threat intel)",
+    "known-malicious-connection": "connection(s) to known-malicious infrastructure (threat intel, not C2-classified)",
     "first-seen-binary": "first-seen binar(ies) executed",
     "ml-anomaly": "hour(s) of behavior flagged anomalous by the ML model",
 }

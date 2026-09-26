@@ -227,40 +227,59 @@ def match_rules(event: dict, known_hashes: set[str] | None = None) -> list[dict]
 BRUTE_FORCE_FAILED_THRESHOLD = 20  # failed auth attempts per device per scanned set
 
 
-def match_ioc_rules(event: dict, c2_ips: set, c2_domains: set) -> list[dict]:
-    """Threat-intel rules: flag connections to known C2 infrastructure.
+def match_ioc_rules(
+    event: dict,
+    c2_ips: set,
+    c2_domains: set,
+    malicious_ips: set | None = None,
+    malicious_domains: set | None = None,
+) -> list[dict]:
+    """Threat-intel rules: flag connections to known malicious infrastructure.
 
     c2_ips/c2_domains come from the intel feed (CISA KEV + URLhaus +
-    ThreatFox), cached 10 minutes by app.intel.refresh. A hit here is
-    high-confidence: the destination is on a curated malicious list.
+    ThreatFox), cached 10 minutes by app.intel.refresh. A hit on the
+    C2-classified sets fires `known-c2-connection` (T1071, confidence 90);
+    a hit on the broader known-malicious sets fires
+    `known-malicious-connection` (confidence 80, no technique attribution —
+    honest about what the feed actually says).
     """
-    if event.get("event_type") != "network" or (not c2_ips and not c2_domains):
+    if event.get("event_type") != "network":
         return []
     n = _section(event)
     dst_ip = str(n.get("dst_ip") or "").strip()
     dst_host = str(n.get("dst_host") or n.get("host") or "").strip().lower()
-    hit_ip = dst_ip in c2_ips if dst_ip else False
-    hit_domain = dst_host in c2_domains if dst_host else False
-    if not (hit_ip or hit_domain):
+
+    hit_c2_ip = dst_ip in (c2_ips or set()) if dst_ip else False
+    hit_c2_domain = dst_host in (c2_domains or set()) if dst_host else False
+    hit_mal_ip = dst_ip in (malicious_ips or set()) if dst_ip else False
+    hit_mal_domain = dst_host in (malicious_domains or set()) if dst_host else False
+
+    if hit_c2_ip or hit_c2_domain:
+        is_c2, matched = True, dst_ip if hit_c2_ip else dst_host
+    elif hit_mal_ip or hit_mal_domain:
+        is_c2, matched = False, dst_ip if hit_mal_ip else dst_host
+    else:
         return []
-    matched = dst_ip if hit_ip else dst_host
+
+    rule_id = "known-c2-connection" if is_c2 else "known-malicious-connection"
     return [{
-        "rule_id": "known-c2-connection",
-        "rule_name": "Connection to known C2 infrastructure",
+        "rule_id": rule_id,
+        "rule_name": "Connection to known C2 infrastructure" if is_c2 else "Connection to known-malicious infrastructure",
         "severity": "HIGH",
-        "confidence": 90,
+        "confidence": 90 if is_c2 else 80,
         "title": f"Connection to known malicious infrastructure: {matched}",
         "description": (
             f"Device {event.get('device_id', 'unknown')} connected to {matched}, "
             f"which appears in the threat-intel feed as "
-            f"{'a known C2 IP' if hit_ip else 'a known malicious domain'}."
+            f"{'a known C2 IP' if is_c2 and hit_c2_ip else 'a known C2 domain' if is_c2 else 'known-malicious infrastructure'}."
         ),
-        "fingerprint": _fingerprint("known-c2-connection", event.get("device_id", ""), matched),
+        "fingerprint": _fingerprint(rule_id, event.get("device_id", ""), matched),
         "evidence": {
             "dst_ip": dst_ip or None,
             "dst_host": dst_host or None,
             "dst_port": n.get("dst_port"),
             "matched_value": matched,
+            "intel_classified_c2": is_c2,
             "intel_source": "threat-intel-feed",
         },
     }]

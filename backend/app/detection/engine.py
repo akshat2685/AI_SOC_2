@@ -197,17 +197,21 @@ async def scan_tenant(db: AsyncSession, tenant_id: int, lookback_hours: int | No
     new_alerts: list[Alert] = []
     max_observed = since
 
-    # Known-C2 sets from the threat-intel feed (cached 10 min; empty until
-    # the first refresh lands — never let intel break detection).
+    # Known-malicious sets from the threat-intel feed (cached 10 min; empty
+    # until the first refresh lands — never let intel break detection).
     try:
         from app.intel.refresh import get_c2_domains as _c2_domains
         from app.intel.refresh import get_c2_ips as _c2_ips
+        from app.intel.refresh import get_malicious_domains as _mal_domains
+        from app.intel.refresh import get_malicious_ips as _mal_ips
 
         c2_ips = await _c2_ips(db)
         c2_domains = await _c2_domains(db)
+        mal_ips = await _mal_ips(db)
+        mal_domains = await _mal_domains(db)
     except Exception:
         logger.warning("intel_c2_lookup_failed", exc_info=True)
-        c2_ips, c2_domains = set(), set()
+        c2_ips, c2_domains, mal_ips, mal_domains = set(), set(), set(), set()
 
     # --- rule pass ---
     for ev in event_dicts:
@@ -222,7 +226,7 @@ async def scan_tenant(db: AsyncSession, tenant_id: int, lookback_hours: int | No
             alert = build_rule_alert(tenant_id, ev, finding)
             db.add(alert)
             new_alerts.append(alert)
-        for finding in rules_mod.match_ioc_rules(ev, c2_ips, c2_domains):
+        for finding in rules_mod.match_ioc_rules(ev, c2_ips, c2_domains, mal_ips, mal_domains):
             fp = finding["fingerprint"]
             if fp in seen_fps:
                 continue

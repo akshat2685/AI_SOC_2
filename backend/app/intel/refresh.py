@@ -237,3 +237,48 @@ async def get_c2_ips(db: Optional[AsyncSession] = None) -> set[str]:
 async def get_c2_domains(db: Optional[AsyncSession] = None) -> set[str]:
     """Known C2/botnet domains (10-min cache)."""
     return await _cached_c2_set(db, "domain")
+
+
+async def get_malicious_ips(db: Optional[AsyncSession] = None) -> set[str]:
+    """All known-malicious IP addresses from the intel feed, any threat type."""
+    return await _cached_malicious_set(db, "ip")
+
+
+async def get_malicious_domains(db: Optional[AsyncSession] = None) -> set[str]:
+    """All known-malicious domains from the intel feed, any threat type."""
+    return await _cached_malicious_set(db, "domain")
+
+
+async def _cached_malicious_set(
+    db: Optional[AsyncSession], ioc_type: str
+) -> set[str]:
+    cache_key = f"malicious_{ioc_type}s"
+    cached = _C2_CACHE.get(cache_key)
+    if cached and (_utcnow() - cached[0]) < timedelta(seconds=C2_CACHE_TTL_S):
+        return cached[1]
+
+    close_after = False
+    if db is None:
+        from app.infrastructure.database import AsyncSessionLocal
+
+        db = AsyncSessionLocal()
+        close_after = True
+    try:
+        rows = (
+            (
+                await db.execute(
+                    select(ThreatIntelIoC.value).where(
+                        ThreatIntelIoC.ioc_type == ioc_type,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    finally:
+        if close_after:
+            await db.close()
+
+    values = {str(v) for v in rows if v}
+    _C2_CACHE[cache_key] = (_utcnow(), values)
+    return values

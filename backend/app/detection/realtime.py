@@ -85,12 +85,16 @@ async def _score(
     try:
         from app.intel.refresh import get_c2_domains as _rt_c2_domains
         from app.intel.refresh import get_c2_ips as _rt_c2_ips
+        from app.intel.refresh import get_malicious_domains as _rt_mal_domains
+        from app.intel.refresh import get_malicious_ips as _rt_mal_ips
 
         c2_ips = await _rt_c2_ips(db)
         c2_domains = await _rt_c2_domains(db)
+        mal_ips = await _rt_mal_ips(db)
+        mal_domains = await _rt_mal_domains(db)
     except Exception:
         logger.warning("realtime_intel_c2_lookup_failed", exc_info=True)
-        c2_ips, c2_domains = set(), set()
+        c2_ips, c2_domains, mal_ips, mal_domains = set(), set(), set(), set()
     for e in events:
         ev = engine_mod._event_to_dict(e)
         event_dicts.append(ev)
@@ -104,7 +108,7 @@ async def _score(
             alert = engine_mod.build_rule_alert(tenant_id, ev, finding)
             db.add(alert)
             new_alerts.append(alert)
-        for finding in rules_mod.match_ioc_rules(ev, c2_ips, c2_domains):
+        for finding in rules_mod.match_ioc_rules(ev, c2_ips, c2_domains, mal_ips, mal_domains):
             if finding["severity"] not in REALTIME_SEVERITIES:
                 continue
             fp = finding["fingerprint"]

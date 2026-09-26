@@ -132,6 +132,15 @@ def _propose_actions(alert: Alert) -> list[dict]:
         except ValueError:
             pass
 
+    elif rule_id == "known-malicious-connection":
+        # Same containment as known-C2: the destination is known-malicious.
+        ip = str(ev.get("matched_value") or ev.get("dst_ip") or "").strip()
+        try:
+            if ip and ipaddress.ip_address(ip).is_global:
+                actions.append({"action": "block_ip", "params": {"ip": ip}})
+        except ValueError:
+            pass
+
     # Belt-and-braces: drop anything outside the allowlist, even though the
     # branches above only ever produce allowlisted actions.
     return [a for a in actions if a["action"] in COMMAND_ACTIONS]
