@@ -1,46 +1,103 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useStore, Incident, Alert } from '@/store/useStore';
-import { 
-  TrendingUp, 
-  Clock, 
-  Percent, 
-  ShieldAlert, 
-  Activity, 
-  Server, 
-  Cpu, 
+import {
+  ShieldAlert,
   AlertTriangle,
-  FileSpreadsheet
+  MonitorSmartphone,
+  ShieldCheck,
+  FileSpreadsheet,
+  RefreshCw,
+  Loader2,
+  Server,
 } from 'lucide-react';
 import QuickBlockModal from '@/components/QuickBlockModal';
-import GeographicalThreatMap from '@/components/GeographicalThreatMap';
+
+function sevBadge(sev?: string) {
+  const s = (sev || '').toUpperCase();
+  if (s === 'CRITICAL') return 'bg-red-950/30 text-red-400 border-red-900/50';
+  if (s === 'HIGH') return 'bg-orange-950/30 text-orange-400 border-orange-900/50';
+  if (s === 'MEDIUM') return 'bg-amber-950/30 text-amber-400 border-amber-900/50';
+  return 'bg-slate-800/40 text-slate-400 border-slate-700/40';
+}
+
+function timeAgo(iso?: string | null): string {
+  if (!iso) return '—';
+  const t = new Date(iso).getTime();
+  if (isNaN(t)) return '—';
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
 
 export default function DashboardView() {
-  const { incidents, setIncidents, alerts, setAlerts, currentTenant } = useStore();
-  const [metrics, setMetrics] = useState<any>(null);
+  const { incidents, setIncidents, alerts, setAlerts, setActivePage } = useStore();
   const [loading, setLoading] = useState(true);
+  const [endpointsOnline, setEndpointsOnline] = useState<number | null>(null);
+  const [pendingApprovals, setPendingApprovals] = useState<number | null>(null);
+  const [backendHealth, setBackendHealth] = useState<{ status?: string; version?: string } | null>(null);
   const [blockingIp, setBlockingIp] = useState<string | null>(null);
   const [blockReason, setBlockReason] = useState<string>('');
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [incRes, altRes, agentsRes, apprRes, healthRes] = await Promise.allSettled([
+        api.getIncidents(),
+        api.getAlerts(),
+        api.listAgents(),
+        api.getApprovals('PENDING'),
+        api.health(),
+      ]);
+      // Backend already scopes to the signed-in tenant; no client-side filtering theater.
+      if (incRes.status === 'fulfilled') {
+        const list = Array.isArray(incRes.value) ? incRes.value : incRes.value?.incidents ?? [];
+        setIncidents(list);
+      }
+      if (altRes.status === 'fulfilled') {
+        const list = Array.isArray(altRes.value) ? altRes.value : altRes.value?.alerts ?? [];
+        setAlerts(list);
+      }
+      if (agentsRes.status === 'fulfilled' && Array.isArray(agentsRes.value)) {
+        setEndpointsOnline(agentsRes.value.filter((a: any) => (a.status || '').toUpperCase() === 'ONLINE').length);
+      } else {
+        setEndpointsOnline(null);
+      }
+      if (apprRes.status === 'fulfilled') {
+        const list = Array.isArray(apprRes.value) ? apprRes.value : apprRes.value?.approvals ?? [];
+        setPendingApprovals(list.length);
+      } else {
+        setPendingApprovals(null);
+      }
+      if (healthRes.status === 'fulfilled') {
+        setBackendHealth(healthRes.value);
+      } else {
+        setBackendHealth(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [setIncidents, setAlerts]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
   const handleDownloadAlertsCSV = () => {
     if (alerts.length === 0) return;
-    
-    const headers = ['ID', 'Title', 'Severity', 'Attacker IP', 'Attack Type', 'Verdict', 'Timestamp', 'Tenant ID'];
-    const rows = alerts.map(alert => [
+    const headers = ['ID', 'Title', 'Severity', 'Attacker IP', 'Attack Type', 'Verdict', 'Timestamp'];
+    const rows = alerts.map((alert: Alert) => [
       alert.id,
-      `"${alert.title.replace(/"/g, '""')}"`,
+      `"${(alert.title || '').replace(/"/g, '""')}"`,
       alert.severity,
       alert.attacker_ip,
       alert.attack_type,
       alert.verdict || 'N/A',
       alert.timestamp || '',
-      alert.tenant_id || ''
     ]);
-
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([[headers.join(','), ...rows.map(r => r.join(','))].join('\n')], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
@@ -51,145 +108,124 @@ export default function DashboardView() {
     document.body.removeChild(link);
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [incRes, altRes, metricsRes] = await Promise.all([
-          api.getIncidents(),
-          api.getAlerts(),
-          api.getExecutiveMetrics()
-        ]);
-        
-        // Filter by tenant if applicable
-        const tenantInc = incRes.filter((i: Incident) => i.tenant_id === currentTenant);
-        const tenantAlt = altRes.filter((a: Alert) => a.tenant_id === currentTenant);
-        
-        setIncidents(tenantInc);
-        setAlerts(tenantAlt);
-        setMetrics(metricsRes);
-      } catch (e) {
-        console.error('Fetch dashboard failed:', e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [currentTenant, setIncidents, setAlerts]);
-
-  // Derived metrics if API metrics fail or are empty
-  const totalIncidents = incidents.length;
-  const activeIncidents = incidents.filter(i => i.status !== 'RESOLVED').length;
-  const resolvedIncidents = incidents.filter(i => i.status === 'RESOLVED').length;
-  const mttd = metrics?.mttd_avg || 114.5; // fallback
-  const mttr = metrics?.mttr_avg || 285.2; // fallback
+  const activeIncidents = incidents.filter((i: Incident) => {
+    const s = (i.status || '').toUpperCase();
+    return s !== 'RESOLVED' && s !== 'CLOSED';
+  });
+  const recentIncidents = [...activeIncidents]
+    .sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime())
+    .slice(0, 5);
 
   const kpis = [
-    { label: 'MTTD (Mean Time to Detect)', value: `${mttd.toFixed(1)}s`, desc: 'Average alert-to-correlation speed', icon: Clock, color: 'text-blue-500' },
-    { label: 'MTTR (Mean Time to Respond)', value: `${mttr.toFixed(1)}s`, desc: 'Average time to containment playbooks', icon: Activity, color: 'text-emerald-500' },
-    { label: 'Rule Precision', value: `${(metrics?.precision_avg || 91.2).toFixed(1)}%`, desc: 'True positive detection rate', icon: Percent, color: 'text-violet-500' },
-    { label: 'Active Incidents', value: activeIncidents.toString(), desc: 'Unresolved security events in sandbox', icon: ShieldAlert, color: 'text-rose-500' },
+    { label: 'Active incidents', value: activeIncidents.length, icon: AlertTriangle, tone: 'text-amber-400', page: 'incidents' as const },
+    { label: 'Open alerts', value: alerts.length, icon: ShieldAlert, tone: 'text-red-400', page: 'incidents' as const },
+    { label: 'Endpoints online', value: endpointsOnline, icon: MonitorSmartphone, tone: 'text-emerald-400', page: 'endpoints' as const },
+    { label: 'Actions awaiting approval', value: pendingApprovals, icon: ShieldCheck, tone: 'text-sky-400', page: 'approvals' as const },
   ];
 
   if (loading) {
     return (
-      <div className="p-8 flex items-center justify-center h-[50vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="flex items-center justify-center py-24 text-slate-500 text-sm gap-2">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading overview…
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      
-      {/* KPI Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-        {kpis.map((kpi, idx) => {
-          const Icon = kpi.icon;
+    <div className="p-6 space-y-5 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-slate-100">Overview</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Live counts from your tenant — nothing here is sampled or estimated.</p>
+        </div>
+        <button
+          onClick={fetchData}
+          className="flex items-center gap-1.5 text-xs font-medium bg-[#0e1319] hover:bg-[#111722] border border-[#1c2530] text-slate-300 px-3 py-2 rounded-md transition-colors"
+        >
+          <RefreshCw className="w-3.5 h-3.5" />
+          Refresh
+        </button>
+      </div>
+
+      {/* KPI row — all live */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((k) => {
+          const Icon = k.icon;
           return (
-            <div key={idx} className="bg-slate-900/60 border border-slate-800 p-5 rounded-xl shadow-lg relative overflow-hidden group hover:border-slate-700 transition-all">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{kpi.label}</p>
-                  <p className="text-2xl font-bold text-white mt-1.5">{kpi.value}</p>
-                </div>
-                <div className={`p-2.5 rounded-lg bg-slate-950 border border-slate-800 ${kpi.color}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
+            <button
+              key={k.label}
+              onClick={() => setActivePage(k.page)}
+              className="bg-[#0e1319] border border-[#1c2530] rounded-md p-4 text-left hover:border-[#243041] transition-colors"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{k.label}</span>
+                <Icon className={`w-4 h-4 ${k.tone}`} />
               </div>
-              <p className="text-[10px] text-slate-400 mt-3">{kpi.desc}</p>
-            </div>
+              <p className="text-2xl font-bold font-mono text-slate-100 mt-2 tabular-nums">
+                {k.value === null ? '—' : k.value}
+              </p>
+            </button>
           );
         })}
       </div>
 
-      {/* Geographical Threat Heatmap */}
-      <GeographicalThreatMap />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Alerts Feed */}
-        <div className="lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-lg flex flex-col h-[500px]">
-          <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-rose-500" /> Critical Ingested Alerts
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Alerts feed */}
+        <div className="lg:col-span-2 bg-[#0e1319] border border-[#1c2530] rounded-md overflow-hidden flex flex-col max-h-[520px]">
+          <div className="px-5 py-3.5 border-b border-[#1a2230] flex items-center justify-between">
+            <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em] flex items-center gap-2">
+              <ShieldAlert className="w-3.5 h-3.5 text-red-400" /> Latest alerts
             </h3>
             <div className="flex items-center gap-2.5">
               <button
                 type="button"
                 onClick={handleDownloadAlertsCSV}
-                title="Download CSV"
-                className="p-1 hover:bg-slate-850 rounded text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1 text-[10px] font-semibold cursor-pointer border border-slate-800 bg-slate-950"
+                className="flex items-center gap-1.5 text-[10px] font-medium text-slate-400 hover:text-slate-200 border border-[#1c2530] hover:border-[#243041] bg-[#090c11] px-2 py-1 rounded transition-colors"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-500" />
-                <span>Export</span>
+                Export
               </button>
-              <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full">
-                {alerts.length} Total
-              </span>
+              <span className="text-[10px] font-mono text-slate-500">{alerts.length} total</span>
             </div>
           </div>
-
           <div className="flex-1 overflow-y-auto">
             {alerts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-500 gap-2">
-                <ShieldAlert className="w-8 h-8 opacity-40" />
-                <span className="text-xs">No alerts detected for this tenant.</span>
+              <div className="flex flex-col items-center justify-center h-48 text-slate-600 gap-2">
+                <ShieldAlert className="w-7 h-7 opacity-40" />
+                <span className="text-xs">No alerts yet.</span>
               </div>
             ) : (
-              <div className="min-w-full divide-y divide-slate-800/80">
-                {alerts.slice(0, 10).map((alert) => (
-                  <div key={alert.id} className="p-4 hover:bg-slate-800/20 transition-all flex items-start justify-between">
-                    <div>
+              <div className="divide-y divide-[#141b26]">
+                {alerts.slice(0, 10).map((alert: Alert) => (
+                  <div key={alert.id} className="px-5 py-3.5 hover:bg-[#111722] transition-colors flex items-start justify-between gap-4">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
-                          alert.severity === 'CRITICAL' 
-                            ? 'bg-red-950/40 text-red-400 border border-red-800/30' 
-                            : 'bg-amber-950/40 text-amber-400 border border-amber-800/30'
-                        }`}>
+                        <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${sevBadge(alert.severity)}`}>
                           {alert.severity}
                         </span>
-                        <span className="text-xs font-semibold text-slate-200">{alert.title}</span>
+                        <span className="text-xs font-medium text-slate-200 truncate">{alert.title}</span>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        Attacker IP:{' '}
+                      <p className="text-[11px] text-slate-500 mt-1.5">
                         <button
                           type="button"
                           onClick={() => {
                             setBlockingIp(alert.attacker_ip);
                             setBlockReason(`Triggered by: ${alert.title} (${alert.attack_type})`);
                           }}
-                          className="font-mono text-rose-400 hover:text-rose-300 hover:underline bg-rose-950/20 hover:bg-rose-950/40 px-1.5 py-0.5 rounded border border-rose-900/30 hover:border-rose-700/50 font-bold cursor-pointer transition-all inline-flex items-center gap-1"
-                          title="Click for Quick Block"
+                          className="font-mono text-red-400/90 hover:text-red-300 hover:underline bg-red-950/20 px-1.5 py-0.5 rounded border border-red-900/40 transition-colors"
+                          title="Block this IP"
                         >
                           {alert.attacker_ip}
-                        </button>{' '}
-                        | Attack Type: <span className="text-slate-300">{alert.attack_type}</span>
+                        </button>
+                        <span className="mx-2 text-slate-700">·</span>
+                        <span className="text-slate-400">{alert.attack_type}</span>
                       </p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-500">{new Date(alert.timestamp).toLocaleTimeString()}</span>
-                      <p className="text-[9px] font-bold text-emerald-400 mt-0.5 uppercase tracking-wider">{alert.verdict}</p>
+                    <div className="text-right flex-shrink-0">
+                      <span className="text-[10px] font-mono text-slate-500">{timeAgo(alert.timestamp)}</span>
+                      {alert.verdict && (
+                        <p className="text-[9px] font-semibold text-emerald-400 mt-1 uppercase tracking-wide">{alert.verdict}</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -198,63 +234,67 @@ export default function DashboardView() {
           </div>
         </div>
 
-        {/* System Monitoring Gauges */}
-        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 shadow-lg flex flex-col h-[500px] justify-between">
-          <div>
-            <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2 mb-6">
-              <Activity className="w-4 h-4 text-blue-500" /> Platform Performance
+        {/* Right column */}
+        <div className="space-y-4">
+          {/* Backend status — real liveness probe */}
+          <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-5">
+            <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em] flex items-center gap-2 mb-4">
+              <Server className="w-3.5 h-3.5 text-slate-500" /> Backend
             </h3>
-            
-            <div className="space-y-6">
-              {/* CPU Gauge */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-400">
-                  <span className="flex items-center gap-1.5"><Cpu className="w-3.5 h-3.5" /> SOC Analyst CPU Load</span>
-                  <span className="text-slate-200">14%</span>
-                </div>
-                <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full" style={{ width: '14%' }}></div>
-                </div>
-              </div>
-
-              {/* Memory Gauge */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-400">
-                  <span className="flex items-center gap-1.5"><Server className="w-3.5 h-3.5" /> Memory Consumption</span>
-                  <span className="text-slate-200">232 MB</span>
-                </div>
-                <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-indigo-500 rounded-full" style={{ width: '45%' }}></div>
-                </div>
-              </div>
-
-              {/* API Health */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-xs font-bold text-slate-400">
-                  <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5" /> Connection Health</span>
-                  <span className="text-emerald-400 font-bold">100% HEALTHY</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 pt-2">
-                  <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-center">
-                    <p className="text-[9px] text-slate-500 font-bold uppercase">Postgres</p>
-                    <p className="text-xs font-bold text-emerald-400 mt-1">ONLINE</p>
-                  </div>
-                  <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-center">
-                    <p className="text-[9px] text-slate-500 font-bold uppercase">Qdrant</p>
-                    <p className="text-xs font-bold text-emerald-400 mt-1">ONLINE</p>
-                  </div>
-                  <div className="bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-center">
-                    <p className="text-[9px] text-slate-500 font-bold uppercase">Neo4j</p>
-                    <p className="text-xs font-bold text-emerald-400 mt-1">ONLINE</p>
-                  </div>
-                </div>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-400">API status</span>
+              {backendHealth ? (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                  {(backendHealth.status || 'ok').toUpperCase()}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-red-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                  UNREACHABLE
+                </span>
+              )}
             </div>
+            {backendHealth?.version && (
+              <div className="flex items-center justify-between mt-2.5">
+                <span className="text-xs text-slate-400">Version</span>
+                <span className="text-xs font-mono text-slate-300">{backendHealth.version}</span>
+              </div>
+            )}
+            <p className="text-[10px] text-slate-600 mt-3 leading-relaxed">
+              Live probe of the API backing this console. Infrastructure beyond the API is not instrumented here.
+            </p>
           </div>
 
-          <div className="border-t border-slate-800 pt-4 text-center">
-            <p className="text-[10px] text-slate-500">EDYSOR Engine Version: <span className="font-mono text-slate-400">1.2.0-AGI</span></p>
-            <p className="text-[9px] text-slate-600 mt-1">Fully aligned with MITRE ATT&CK v14.0</p>
+          {/* Recent incidents */}
+          <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.14em]">Recent incidents</h3>
+              <button
+                onClick={() => setActivePage('incidents')}
+                className="text-[10px] font-medium text-sky-400 hover:text-sky-300"
+              >
+                View all
+              </button>
+            </div>
+            {recentIncidents.length === 0 ? (
+              <p className="text-[11px] text-slate-600 py-3">No open incidents. The queue is clear.</p>
+            ) : (
+              <div className="space-y-2">
+                {recentIncidents.map((inc: Incident) => (
+                  <button
+                    key={inc.id}
+                    onClick={() => setActivePage('incidents')}
+                    className="w-full flex items-center justify-between gap-3 bg-[#090c11] border border-[#1c2530] rounded-md px-3 py-2.5 hover:border-[#243041] transition-colors text-left"
+                  >
+                    <span className="text-[11px] font-medium text-slate-300 truncate">{inc.title}</span>
+                    <span className={`text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border flex-shrink-0 ${sevBadge(inc.severity)}`}>
+                      {inc.severity}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

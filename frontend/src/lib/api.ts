@@ -314,6 +314,22 @@ export const api = {
     return request('/dashboard/soc-command');
   },
 
+  // Backend health (real liveness probe — no fabricated infra stats)
+  health: async (): Promise<any> => {
+    return request('/health');
+  },
+
+  // API Keys (sensor + integration auth)
+  listApiKeys: async (): Promise<any> => {
+    return request('/api-keys/');
+  },
+  createApiKey: async (name: string, scopes: string[] = []): Promise<any> => {
+    return request('/api-keys/', { method: 'POST', body: JSON.stringify({ name, scopes }) });
+  },
+  revokeApiKey: async (keyId: string): Promise<any> => {
+    return request(`/api-keys/${encodeURIComponent(keyId)}/revoke`, { method: 'POST' });
+  },
+
   // MITRE ATT&CK technique detail
   getMitreTechnique: async (id: string): Promise<any> => {
     return request(`/mitre/techniques/${encodeURIComponent(id)}`);

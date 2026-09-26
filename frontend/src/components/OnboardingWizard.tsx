@@ -305,7 +305,7 @@ export default function OnboardingWizard() {
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+        <div className="w-11 h-11 rounded-md bg-[#131a23] border border-[#243041] flex items-center justify-center ">
           <Rocket className="w-6 h-6 text-white" />
         </div>
         <div>
@@ -315,17 +315,17 @@ export default function OnboardingWizard() {
       </div>
 
       {backendNote && (
-        <div className="mb-4 text-xs bg-amber-950/40 border border-amber-800/60 text-amber-300 px-4 py-3 rounded-xl">{backendNote}</div>
+        <div className="mb-4 text-xs bg-amber-950/40 border border-amber-800/60 text-amber-300 px-4 py-3 rounded-md">{backendNote}</div>
       )}
 
       {/* Progress */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-6">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Setup progress</span>
-          <span className="text-xs font-bold text-blue-400">{percent}%</span>
+          <span className="text-xs font-bold text-sky-400">{percent}%</span>
         </div>
         <div className="h-2 bg-slate-800 rounded-full overflow-hidden mb-4">
-          <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all" style={{ width: `${percent}%` }} />
+          <div className="h-full bg-sky-500 to-indigo-500 transition-all" style={{ width: `${percent}%` }} />
         </div>
         <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
           {STEPS.map(s => {
@@ -337,7 +337,7 @@ export default function OnboardingWizard() {
                 key={s.n}
                 onClick={() => setStep(s.n)}
                 className={`rounded-lg px-2 py-2 text-center border transition-all ${
-                  current ? 'border-blue-500 bg-blue-950/40' : done ? 'border-green-800 bg-green-950/20' : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+                  current ? 'border-sky-500 bg-blue-950/40' : done ? 'border-green-800 bg-green-950/20' : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
                 }`}
               >
                 <div className="flex items-center justify-center mb-1">
@@ -406,7 +406,7 @@ export default function OnboardingWizard() {
         <button
           onClick={goBack}
           disabled={step === 1}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 disabled:opacity-40 transition-all"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-md text-xs font-semibold text-slate-300 bg-slate-900 border border-slate-800 hover:bg-slate-800 disabled:opacity-40 transition-all"
         >
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -420,7 +420,7 @@ export default function OnboardingWizard() {
             <button
               onClick={goContinue}
               disabled={saving}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 transition-all"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-md text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50 transition-all"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Continue <ArrowRight className="w-4 h-4" />
@@ -444,7 +444,7 @@ function OrgStep({ orgName, setOrgName, industry, setIndustry, orgSize, setOrgSi
   industry: string; setIndustry: (v: string) => void;
   orgSize: string; setOrgSize: (v: string) => void;
 }) {
-  const inputCls = 'w-full bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/80';
+  const inputCls = 'w-full bg-slate-950/80 border border-[#1c2530] rounded-md px-4 py-3 text-sm text-white focus:outline-none focus:border-sky-500/80';
   return (
     <div className="grid md:grid-cols-2 gap-4">
       <div>
@@ -493,17 +493,17 @@ function EndpointsStep({ agents, regHost, setRegHost, regOs, setRegOs, regResult
           const isOpen = expanded === os.key;
           const result = regResult[os.key];
           return (
-            <div key={os.key} className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+            <div key={os.key} className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4">
               <div className="flex items-center gap-2.5 mb-3">
-                <div className="w-9 h-9 rounded-lg bg-blue-600/15 border border-blue-500/25 flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-blue-400" />
+                <div className="w-9 h-9 rounded-lg bg-sky-600/15 border border-sky-500/25 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-sky-400" />
                 </div>
                 <h3 className="text-sm font-bold text-slate-100">{os.label}</h3>
               </div>
 
               <button
                 onClick={() => setExpanded(isOpen ? null : os.key)}
-                className="w-full text-left text-xs font-semibold text-blue-400 hover:text-blue-300 mb-2 flex items-center justify-between"
+                className="w-full text-left text-xs font-semibold text-sky-400 hover:text-blue-300 mb-2 flex items-center justify-between"
               >
                 Download agent / install snippet
                 <ChevronRight className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
@@ -530,13 +530,13 @@ function EndpointsStep({ agents, regHost, setRegHost, regOs, setRegOs, regResult
                   placeholder="Hostname (e.g. WIN-ABC123)"
                   value={regHost[os.key] || ''}
                   onChange={e => setRegHost({ ...regHost, [os.key]: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/80"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500/80"
                 />
                 <input
                   placeholder="OS version (optional)"
                   value={regOs[os.key] || ''}
                   onChange={e => setRegOs({ ...regOs, [os.key]: e.target.value })}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/80"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500/80"
                 />
                 <button
                   onClick={() => onRegister(os.key)}
@@ -559,7 +559,7 @@ function EndpointsStep({ agents, regHost, setRegHost, regOs, setRegOs, regResult
         })}
       </div>
 
-      <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+      <div className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4">
         <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider mb-3">Registered agents ({agents.length})</h4>
         {agents.length === 0 ? (
           <p className="text-xs text-slate-500">No agents registered yet. Register a device above to see it here.</p>
@@ -598,7 +598,7 @@ function ConnectorPickerStep({ connectors, integrations, onConnect, emptyHint }:
       {connectors.map(c => {
         const connected = integrations.some(i => i.connector_key === c.key);
         return (
-          <div key={c.key} className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+          <div key={c.key} className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4">
             <div className="flex items-start justify-between mb-2">
               <div>
                 <h4 className="text-sm font-bold text-slate-100">{c.name}</h4>
@@ -615,7 +615,7 @@ function ConnectorPickerStep({ connectors, integrations, onConnect, emptyHint }:
             )}
             <button
               onClick={() => onConnect(c)}
-              className="w-full text-xs font-semibold py-2 rounded-lg bg-blue-600/20 border border-blue-500/30 text-blue-300 hover:bg-blue-600/30 transition-all flex items-center justify-center gap-2"
+              className="w-full text-xs font-semibold py-2 rounded-lg bg-sky-600/20 border border-sky-500/30 text-blue-300 hover:bg-sky-600/30 transition-all flex items-center justify-center gap-2"
             >
               <Plug className="w-3.5 h-3.5" /> {connected ? 'Connect another' : 'Connect'}
             </button>
@@ -642,7 +642,7 @@ function ResponseStep({ autonomy, setAutonomy }: { autonomy: string; setAutonomy
           <button
             key={l.key}
             onClick={() => setAutonomy(l.key)}
-            className={`w-full text-left rounded-xl border p-4 transition-all ${selected ? 'border-blue-500 bg-blue-950/30' : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'}`}
+            className={`w-full text-left rounded-md border p-4 transition-all ${selected ? 'border-sky-500 bg-blue-950/30' : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'}`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selected ? 'border-blue-400' : 'border-slate-600'}`}>
@@ -677,7 +677,7 @@ function HealthStep({ integrations, results, running, onRun }: {
         <button
           onClick={onRun}
           disabled={running || integrations.length === 0}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-md text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 disabled:opacity-50"
         >
           {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Activity className="w-4 h-4" />}
           {running ? 'Running…' : 'Run health check'}
@@ -691,7 +691,7 @@ function HealthStep({ integrations, results, running, onRun }: {
       {results && (
         <div className="space-y-3">
           {results.map(r => (
-            <div key={String(r.integrationId)} className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+            <div key={String(r.integrationId)} className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4">
               <div className="flex items-center gap-2 mb-2">
                 {r.ok ? <CheckCircle2 className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-red-400" />}
                 <p className="text-sm font-bold text-slate-100">{r.name}</p>
@@ -731,18 +731,18 @@ function FinishStep({ orgName, integrations, agents, autonomy, completedCount, o
   return (
     <div className="space-y-4">
       <div className="grid md:grid-cols-3 gap-4">
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-center">
-          <Plug className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+        <div className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4 text-center">
+          <Plug className="w-6 h-6 text-sky-400 mx-auto mb-2" />
           <p className="text-2xl font-bold text-slate-100">{connectedCount}</p>
           <p className="text-[11px] text-slate-400 uppercase tracking-wider">Integrations</p>
         </div>
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-center">
-          <Laptop className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+        <div className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4 text-center">
+          <Laptop className="w-6 h-6 text-sky-400 mx-auto mb-2" />
           <p className="text-2xl font-bold text-slate-100">{agents.length}</p>
           <p className="text-[11px] text-slate-400 uppercase tracking-wider">Agents</p>
         </div>
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 text-center">
-          <ShieldCheck className="w-6 h-6 text-blue-400 mx-auto mb-2" />
+        <div className="bg-slate-950/60 border border-[#1c2530] rounded-md p-4 text-center">
+          <ShieldCheck className="w-6 h-6 text-sky-400 mx-auto mb-2" />
           <p className="text-sm font-bold text-slate-100 mt-1">{autonomyLabel}</p>
           <p className="text-[11px] text-slate-400 uppercase tracking-wider mt-1">Autonomy (draft)</p>
         </div>
@@ -753,7 +753,7 @@ function FinishStep({ orgName, integrations, agents, autonomy, completedCount, o
       </p>
       <button
         onClick={onFinish}
-        className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition-all flex items-center justify-center gap-2"
+        className="w-full bg-sky-600 hover:bg-sky-500 text-white font-bold py-3.5 rounded-md transition-all flex items-center justify-center gap-2"
       >
         <Rocket className="w-4 h-4" /> Go to SOC Command Center
       </button>

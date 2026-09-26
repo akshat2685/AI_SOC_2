@@ -31,7 +31,7 @@ function statusStyle(status?: string | null): string {
   if (s === 'ONLINE') return 'text-emerald-400 bg-emerald-950/40 border-emerald-800/50';
   if (s === 'DEGRADED') return 'text-amber-400 bg-amber-950/40 border-amber-800/50';
   if (s === 'OFFLINE') return 'text-red-400 bg-red-950/40 border-red-800/50';
-  return 'text-slate-400 bg-slate-800/60 border-slate-700/60';
+  return 'text-slate-400 bg-[#131a23] border-[#243041]';
 }
 
 function platformIcon(platform?: string | null) {
@@ -90,14 +90,14 @@ export default function EndpointsView() {
           </span>
           <button
             onClick={load}
-            className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/60 text-slate-300 hover:bg-slate-800 transition"
+            className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#0e1319] border border-[#1c2530] text-slate-300 hover:bg-[#111722] transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
           <button
             onClick={() => setActivePage('onboarding')}
-            className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition"
+            className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             Enroll endpoint
@@ -112,13 +112,13 @@ export default function EndpointsView() {
       )}
 
       {error && (
-        <div className="p-4 rounded-xl border border-red-800/50 bg-red-950/30 text-red-300 text-sm">
+        <div className="p-4 rounded-md border border-red-800/50 bg-red-950/30 text-red-300 text-sm">
           {error}
         </div>
       )}
 
       {!loading && !error && agents.length === 0 && (
-        <div className="py-16 text-center border border-dashed border-slate-800 rounded-2xl">
+        <div className="py-16 text-center border border-dashed border-[#1c2530] rounded-md">
           <MonitorSmartphone className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <p className="text-slate-300 font-medium">No endpoint agents enrolled yet</p>
           <p className="text-slate-500 text-sm mt-1">
@@ -126,7 +126,7 @@ export default function EndpointsView() {
           </p>
           <button
             onClick={() => setActivePage('onboarding')}
-            className="mt-4 text-xs px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition"
+            className="mt-4 text-xs px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors"
           >
             Open the Endpoints setup step
           </button>
@@ -138,11 +138,11 @@ export default function EndpointsView() {
           {agents.map((a) => (
             <div
               key={a.device_id}
-              className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition"
+              className="p-5 rounded-md bg-[#0e1319] border border-[#1c2530] hover:border-[#243041] transition-colors"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-md bg-[#131a23] border border-[#243041] flex items-center justify-center shrink-0">
                     {platformIcon(a.platform)}
                   </div>
                   <div className="min-w-0">
@@ -171,7 +171,7 @@ export default function EndpointsView() {
                 </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
+              <div className="mt-4 pt-3 border-t border-[#1a2230] flex items-center justify-between text-[11px]">
                 <span className="text-slate-500">
                   Heartbeat: <span className="text-slate-300">{timeAgo(a.last_heartbeat_at)}</span>
                 </span>

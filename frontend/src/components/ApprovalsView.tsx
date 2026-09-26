@@ -124,11 +124,11 @@ export default function ApprovalsView() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center">
-            <ShieldCheck className="w-5 h-5 text-blue-400" />
+          <div className="w-10 h-10 rounded-md bg-[#131a23] border border-[#243041] flex items-center justify-center">
+            <ShieldCheck className="w-5 h-5 text-sky-400" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Response Center</h2>
+            <h2 className="text-lg font-bold text-slate-100">Response Center</h2>
             <p className="text-xs text-slate-500">
               Human decisions on AI-proposed response actions
               {user?.role ? ` · signed in as ${user.role}` : ''}
@@ -138,7 +138,7 @@ export default function ApprovalsView() {
         <button
           onClick={() => load()}
           disabled={loading}
-          className="flex items-center gap-1.5 text-xs font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 px-3 py-2 rounded-lg transition-all disabled:opacity-50"
+          className="flex items-center gap-1.5 text-xs font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 px-3 py-2 rounded-md transition-all disabled:opacity-50"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -146,7 +146,7 @@ export default function ApprovalsView() {
       </div>
 
       {/* Autonomy mode banner — policy display only */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
+      <div className="bg-[#0e1319] border border-[#1c2530] rounded-md p-4">
         <div className="flex items-start gap-2.5">
           <Info className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
@@ -157,7 +157,7 @@ export default function ApprovalsView() {
               {AUTONOMY_MODES.map((m) => (
                 <div
                   key={m.id}
-                  className="flex items-center gap-2 bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2"
+                  className="flex items-center gap-2 bg-[#090c11] border border-[#1c2530] rounded-md px-3 py-2"
                   title={m.desc}
                 >
                   <Zap className="w-3.5 h-3.5 text-slate-500" />
@@ -178,9 +178,9 @@ export default function ApprovalsView() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`text-xs font-bold px-3.5 py-2 rounded-lg border transition-all ${
+            className={`text-xs font-bold px-3.5 py-2 rounded-md border transition-all ${
               filter === f
-                ? 'bg-blue-600/20 border-blue-500/40 text-blue-300'
+                ? 'bg-sky-600/20 border-sky-500/40 text-blue-300'
                 : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -191,7 +191,7 @@ export default function ApprovalsView() {
 
       {/* Error banner */}
       {error && (
-        <div className="flex items-start gap-2.5 bg-red-950/30 border border-red-800/40 rounded-xl p-4 text-xs text-red-300">
+        <div className="flex items-start gap-2.5 bg-red-950/30 border border-red-800/40 rounded-md p-4 text-xs text-red-300">
           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-bold">Request failed</p>
@@ -208,7 +208,7 @@ export default function ApprovalsView() {
       {/* Queue */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500" />
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-sky-500" />
         </div>
       ) : approvals.length === 0 ? (
         <div className="bg-slate-900/60 border border-dashed border-slate-800 rounded-2xl p-12 text-center">
@@ -231,7 +231,7 @@ export default function ApprovalsView() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <h3 className="text-sm font-bold text-white truncate">{a.playbook_name}</h3>
+                      <h3 className="text-sm font-bold text-slate-100 truncate">{a.playbook_name}</h3>
                       <span
                         className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusStyle(a.status)}`}
                       >
@@ -294,7 +294,7 @@ export default function ApprovalsView() {
                         onClick={() => decide(a.id, 'approve')}
                         disabled={!isAdmin || actingId === a.id}
                         title={isAdmin ? 'Approve this action' : 'Tenant admin role required'}
-                        className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600/20 hover:bg-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-500/40 text-emerald-300 px-3 py-2 rounded-lg transition-all"
+                        className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600/20 hover:bg-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed border border-emerald-500/40 text-emerald-300 px-3 py-2 rounded-md transition-all"
                       >
                         <Check className="w-3.5 h-3.5" />
                         {actingId === a.id ? 'Working...' : 'Approve'}
@@ -303,7 +303,7 @@ export default function ApprovalsView() {
                         onClick={() => decide(a.id, 'reject')}
                         disabled={!isAdmin || actingId === a.id}
                         title={isAdmin ? 'Reject this action' : 'Tenant admin role required'}
-                        className="flex items-center gap-1.5 text-xs font-bold bg-red-600/20 hover:bg-red-600/30 disabled:opacity-40 disabled:cursor-not-allowed border border-red-500/40 text-red-300 px-3 py-2 rounded-lg transition-all"
+                        className="flex items-center gap-1.5 text-xs font-bold bg-red-600/20 hover:bg-red-600/30 disabled:opacity-40 disabled:cursor-not-allowed border border-red-500/40 text-red-300 px-3 py-2 rounded-md transition-all"
                       >
                         <X className="w-3.5 h-3.5" />
                         Reject
@@ -318,7 +318,7 @@ export default function ApprovalsView() {
                               ? 'Escalate to SOC manager (tracked locally — no backend escalate endpoint yet)'
                               : 'Tenant admin role required'
                         }
-                        className="flex items-center gap-1.5 text-xs font-bold bg-purple-600/20 hover:bg-purple-600/30 disabled:opacity-40 disabled:cursor-not-allowed border border-purple-500/40 text-purple-300 px-3 py-2 rounded-lg transition-all"
+                        className="flex items-center gap-1.5 text-xs font-bold bg-purple-600/20 hover:bg-purple-600/30 disabled:opacity-40 disabled:cursor-not-allowed border border-purple-500/40 text-purple-300 px-3 py-2 rounded-md transition-all"
                       >
                         <ArrowUpCircle className="w-3.5 h-3.5" />
                         {escalated ? 'Escalated' : 'Escalate'}
@@ -340,7 +340,7 @@ export default function ApprovalsView() {
                       Full execution context
                     </button>
                     {expandedId === a.id && (
-                      <pre className="mt-2 bg-slate-950 border border-slate-800 rounded-xl p-3 text-[10px] font-mono text-slate-400 overflow-x-auto max-h-48 overflow-y-auto">
+                      <pre className="mt-2 bg-slate-950 border border-[#1c2530] rounded-md p-3 text-[10px] font-mono text-slate-400 overflow-x-auto max-h-48 overflow-y-auto">
                         {JSON.stringify(a.context, null, 2)}
                       </pre>
                     )}

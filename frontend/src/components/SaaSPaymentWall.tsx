@@ -134,7 +134,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
           <h3 className="text-xl font-bold text-slate-100">Upgrade Successful!</h3>
           <p className="text-sm text-slate-400 max-w-sm mx-auto">{successMsg}</p>
         </div>
-        <div className="bg-slate-950 border border-slate-850 p-4 rounded-xl text-xs text-slate-300 text-left space-y-2">
+        <div className="bg-slate-950 border border-slate-850 p-4 rounded-md text-xs text-slate-300 text-left space-y-2">
           <div className="font-semibold text-slate-200">What happens next?</div>
           <p>• Advanced Cyber Digital Twin and Scenario propagators are unlocked.</p>
           <p>• MITRE ATT&CK framework mapping endpoints are activated.</p>
@@ -142,7 +142,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
         </div>
         <button
           onClick={() => window.location.reload()}
-          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
+          className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 px-4 rounded-md text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/10"
         >
           <RefreshCw className="w-3.5 h-3.5" /> Initialize Premium Operations
         </button>
@@ -156,7 +156,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
       {/* Visual Header */}
       {!inline && (
         <div className="text-center space-y-3 max-w-2xl mx-auto">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-xs font-semibold text-indigo-400">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 border border-indigo-500/20 rounded-full text-xs font-semibold text-sky-400">
             <Sparkles className="w-3.5 h-3.5" /> Premium Cybersecurity Suite
           </div>
           <h2 className="text-3xl font-extrabold tracking-tight text-slate-100">
@@ -228,7 +228,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {plans[selectedPlan].features.map((feat, idx) => (
                 <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-300">
-                  <span className="mt-0.5 w-4 h-4 rounded bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 flex-shrink-0">
+                  <span className="mt-0.5 w-4 h-4 rounded bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-sky-400 flex-shrink-0">
                     <Check className="w-2.5 h-2.5" />
                   </span>
                   <span>{feat}</span>
@@ -241,14 +241,14 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
         {/* Payments column */}
         <div className="lg:col-span-5">
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden backdrop-blur-xl">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+            <div className="absolute top-0 left-0 w-full h-1 bg-sky-500 to-indigo-500"></div>
             
             <h3 className="text-sm font-bold text-slate-200 mb-6 flex items-center gap-2">
               <CreditCard className="w-4.5 h-4.5 text-blue-500" /> Secure Payment Checkout
             </h3>
 
             {/* Glossy Credit Card Preview */}
-            <div className="relative h-40 w-full bg-gradient-to-br from-indigo-700 via-blue-800 to-indigo-900 rounded-xl p-5 text-white shadow-lg shadow-indigo-900/30 mb-6 overflow-hidden flex flex-col justify-between">
+            <div className="relative h-40 w-full bg-[#131a23] border border-[#243041] rounded-md p-5 text-slate-200 mb-6 overflow-hidden flex flex-col justify-between">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-8 -mt-8"></div>
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full blur-xl -ml-8 -mb-8"></div>
               
@@ -297,7 +297,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
                   placeholder="e.g. John Doe"
                   value={cardName}
                   onChange={e => setCardName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
+                  className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-sky-500 transition-all placeholder:text-slate-600"
                 />
               </div>
 
@@ -309,7 +309,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
                   placeholder="4111 2222 3333 4444"
                   value={cardNumber}
                   onChange={handleCardNumberChange}
-                  className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
+                  className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500 transition-all placeholder:text-slate-600"
                 />
               </div>
 
@@ -322,7 +322,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
                     placeholder="MM/YY"
                     value={cardExpiry}
                     onChange={handleExpiryChange}
-                    className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
+                    className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500 transition-all placeholder:text-slate-600"
                   />
                 </div>
                 <div>
@@ -333,7 +333,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
                     placeholder="•••"
                     value={cardCvc}
                     onChange={handleCvcChange}
-                    className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"
+                    className="w-full bg-slate-950 border border-slate-850 rounded-lg px-3 py-2 text-xs text-slate-100 font-mono focus:outline-none focus:border-sky-500 transition-all placeholder:text-slate-600"
                   />
                 </div>
               </div>
@@ -342,7 +342,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/10 active:scale-[0.99]"
+                  className="w-full bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-md text-xs transition-all flex items-center justify-center gap-1.5 shadow-lg shadow-blue-500/10 active:scale-[0.99]"
                 >
                   {loading ? (
                     <>
