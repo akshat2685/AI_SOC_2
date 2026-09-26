@@ -816,6 +816,56 @@ export default function IncidentsView() {
                             </p>
                           </div>
                         </div>
+
+                        {/* ML Model Analysis */}
+                        {predictedRisk.ml && predictedRisk.ml.triage && (
+                          <div className="bg-indigo-950/20 border border-indigo-900/30 p-4 rounded-lg space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Brain className="w-4 h-4 text-indigo-400" />
+                                <p className="text-[9px] text-indigo-300 font-bold uppercase tracking-wider">ML Model Analysis</p>
+                              </div>
+                              <span className="text-[9px] text-slate-500 font-mono">
+                                {predictedRisk.ml.model_version} · trained on {predictedRisk.ml.trained_on}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Predicted Attack</p>
+                                <p className="text-[11px] text-slate-200 font-bold mt-1 capitalize">
+                                  {predictedRisk.ml.triage.attack_type.replace(/_/g, ' ')}
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  confidence {Math.round((predictedRisk.ml.triage.attack_confidence || 0) * 100)}%
+                                </p>
+                              </div>
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Model Severity</p>
+                                <p className="text-[11px] text-slate-200 font-bold mt-1 capitalize">
+                                  {predictedRisk.ml.triage.severity || '—'}
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  {predictedRisk.ml.triage.severity_confidence != null
+                                    ? `confidence ${Math.round(predictedRisk.ml.triage.severity_confidence * 100)}%`
+                                    : 'not scored'}
+                                </p>
+                              </div>
+                              <div className="bg-slate-900/40 border border-slate-800/60 p-3 rounded-lg">
+                                <p className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">0-Day Anomaly Signal</p>
+                                <p className={`text-[11px] font-bold mt-1 ${predictedRisk.ml.anomaly?.is_anomaly ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                  {predictedRisk.ml.anomaly?.is_anomaly ? 'ANOMALOUS' : 'Normal'}
+                                </p>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  anomaly score {predictedRisk.ml.anomaly?.anomaly_score ?? '—'}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 italic leading-relaxed">
+                              {predictedRisk.ml.features}. The anomaly detector is the 0-day signal (benign-baseline
+                              deviations); the classifier only recognizes attack patterns seen in training. {predictedRisk.ml.warning}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <p className="text-[10px] text-slate-500 italic">Failed to calculate risk indicators. Try selecting another incident.</p>

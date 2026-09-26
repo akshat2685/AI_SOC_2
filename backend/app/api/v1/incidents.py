@@ -149,6 +149,38 @@ async def predict_risk(
     risk_score = min(99, base + min(alert_count * 3, 14))
     risk_level = "Critical" if risk_score >= 85 else "High" if risk_score >= 65 else "Medium" if risk_score >= 40 else "Low"
 
+    # ML block: score incident-derived features with the synthetic-trained models.
+    # Time/asset come from the incident; telemetry counters are defaulted to
+    # benign medians (labeled as such) until real telemetry is wired in.
+    ml_block = None
+    try:
+        from app.ml import inference as ml_inf
+        if ml_inf.models_available():
+            created = incident.created_at
+            hour = created.hour if created else 12
+            feats = {
+                "hour_of_day": hour,
+                "day_of_week": created.weekday() if created else 2,
+                "off_hours": 1 if (hour < 8 or hour >= 20) else 0,
+                "failed_logins_1h": 1,
+                "unique_dst_ips_1h": 8,
+                "bytes_out_mb_1h": 12.0,
+                "new_process_rarity": 0.1,
+                "dns_query_entropy": 0.3,
+                "alert_count_1h": alert_count,
+                "src_asset_type": "workstation",
+            }
+            ml_block = {
+                "triage": ml_inf.predict_triage(feats),
+                "anomaly": ml_inf.predict_anomaly(feats),
+                "model_version": ml_inf.MODEL_VERSION,
+                "trained_on": ml_inf.TRAINED_ON,
+                "features": "partial — time/asset from incident, telemetry defaulted to benign medians",
+                "warning": ml_inf.WARNING,
+            }
+    except Exception:
+        ml_block = None
+
     return {
         "risk_level": risk_level,
         "risk_score": risk_score,
@@ -156,10 +188,12 @@ async def predict_risk(
         "reasoning": (
             f"Heuristic score from incident severity "
             f"({incident.severity.value if incident.severity else 'UNKNOWN'}) and "
-            f"{alert_count} linked alert(s). No ML model is wired in this build."
+            f"{alert_count} linked alert(s). See the 'ml' block for model scores "
+            f"(synthetic-trained v1) when available."
         ),
         "mitigation": "Isolate affected hosts, rotate credentials, and review linked alerts.",
         "model": "heuristic-v1",
+        "ml": ml_block,
     }
 
 

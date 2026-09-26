@@ -149,6 +149,18 @@ export const api = {
     return request(`/api/v1/incidents/${id}/predict-risk`);
   },
 
+  // ML Inference (synthetic-trained v1 models)
+  getMLModels: async (): Promise<any> => {
+    return request('/api/v1/ml/models');
+  },
+
+  analyzeML: async (features: Record<string, any>): Promise<any> => {
+    return request('/api/v1/ml/analyze', {
+      method: 'POST',
+      body: JSON.stringify(features),
+    });
+  },
+
   getRecommendedTriage: async (id: number): Promise<unknown> => {
     return request(`/api/v1/incidents/${id}/recommended-triage`);
   },
