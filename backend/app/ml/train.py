@@ -34,7 +34,7 @@ from sklearn.metrics import (accuracy_score, classification_report,
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
 
-from threat_data import FEATURE_COLUMNS, generate
+from app.ml.threat_data import FEATURE_COLUMNS, generate
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ARTIFACTS = os.path.join(HERE, "artifacts")
