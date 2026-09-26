@@ -23,6 +23,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY backend ./backend
 COPY intelligence_engine ./intelligence_engine
+COPY sensor ./sensor
 COPY backend/alembic.ini .
 
 ENV PYTHONPATH=/app/backend:/app

@@ -15,10 +15,12 @@ so agents can heartbeat with a tenant API key.
 
 import secrets
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +37,16 @@ WRITE_ROLES = [RoleEnum.TENANT_ADMIN, RoleEnum.TENANT_ANALYST]
 
 ONLINE_THRESHOLD_S = 90
 DEGRADED_THRESHOLD_S = 300
+
+# Files the installer snippet may fetch. Served from the packaged sensor/
+# directory (see Dockerfile.backend-prod COPY sensor ./sensor).
+SENSOR_FILES = {"edysor_sensor.py", "requirements.txt"}
+
+
+def _sensor_dir() -> Path:
+    # <root>/backend/app/api/v1/agents.py -> parents[4] == <root> (dev)
+    # and /app/backend/app/api/v1/agents.py -> parents[4] == /app (container).
+    return Path(__file__).resolve().parents[4] / "sensor"
 
 
 def _tenant_id() -> int:
@@ -149,6 +161,25 @@ async def register_agent(
 
 
 # NOTE: literal routes must be registered before /{device_id}.
+@router.get("/sensor/download/{filename}")
+async def download_sensor(filename: str):
+    """Serve the reference sensor installer files.
+
+    Public on purpose: the sensor is inert without a tenant API key
+    (registration requires a valid X-API-Key), so the file itself carries
+    no privilege. The GitHub repo is private, so installers cannot fetch
+    the sensor from raw.githubusercontent.com.
+    """
+    if filename not in SENSOR_FILES:
+        raise HTTPException(status_code=404, detail="unknown sensor file")
+    path = _sensor_dir() / filename
+    if not path.is_file():
+        raise HTTPException(
+            status_code=404, detail="sensor file not packaged in this build"
+        )
+    return FileResponse(path, filename=filename, media_type="text/plain")
+
+
 @router.get("/stats/summary")
 async def agents_summary(
     db: AsyncSession = Depends(get_db),
