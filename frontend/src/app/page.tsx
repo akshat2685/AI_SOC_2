@@ -13,6 +13,9 @@ import SettingsView from '@/components/SettingsView';
 import FederationDashboard from '@/components/FederationDashboard';
 import ChaosDashboard from '@/components/ChaosDashboard';
 import ApprovalsView from '@/components/ApprovalsView';
+import SOCCommandCenter from '@/components/SOCCommandCenter';
+import OnboardingWizard from '@/components/OnboardingWizard';
+import IntegrationsView from '@/components/IntegrationsView';
 import SaaSPaymentWall from '@/components/SaaSPaymentWall';
 
 const AttackGraphView = dynamic(() => import('@/components/AttackGraphView'), {
@@ -38,6 +41,12 @@ export default function Home() {
     switch (activePage) {
       case 'dashboard':
         return <DashboardView />;
+      case 'soc':
+        return <SOCCommandCenter />;
+      case 'onboarding':
+        return <OnboardingWizard />;
+      case 'integrations':
+        return <IntegrationsView />;
       case 'incidents':
         return <IncidentsView />;
       case 'approvals':
