@@ -30,13 +30,17 @@ export interface Alert {
   title: string;
   severity: string;
   confidence: string;
-  confidence_score: number;
+  confidence_score: number | null;
   attack_type: string;
   evidence: string;
-  attacker_ip: string;
+  attacker_ip: string | null;
   verdict: string;
   incident_id?: number;
   tenant_id: string;
+  device_id?: string | null;
+  rule_id?: string | null;
+  detector?: string | null;
+  source?: string;
 }
 
 export interface ThreatIntelConfig {

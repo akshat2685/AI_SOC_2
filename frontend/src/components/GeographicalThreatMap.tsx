@@ -187,7 +187,7 @@ export default function GeographicalThreatMap() {
 
       // Render each threat vector
       activeAlerts.forEach((alert, idx) => {
-        const geo = getGeoFromIP(alert.attacker_ip);
+        const geo = getGeoFromIP(alert.attacker_ip || '0.0.0.0');
         const startXY = getXY(geo.lng, geo.lat, w, h);
 
         const isCritical = alert.severity === 'CRITICAL';
@@ -315,7 +315,7 @@ export default function GeographicalThreatMap() {
             ) : (
               <div className="space-y-2.5 max-h-[200px] overflow-y-auto pr-1">
                 {activeAlerts.map((alert) => {
-                  const geo = getGeoFromIP(alert.attacker_ip);
+                  const geo = getGeoFromIP(alert.attacker_ip || '0.0.0.0');
                   const isCritical = alert.severity === 'CRITICAL';
                   
                   return (

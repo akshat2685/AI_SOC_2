@@ -1,3 +1,5 @@
+import asyncio
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,9 +21,47 @@ async def lifespan(app: FastAPI):
     logger.info("startup", project=settings.PROJECT_NAME, version=settings.VERSION)
     await run_db_migrations()
     await audit_logger.start()
+    scan_task = asyncio.create_task(_detection_scan_loop())
     yield
+    scan_task.cancel()
     await audit_logger.stop()
     logger.info("shutdown", project=settings.PROJECT_NAME)
+
+
+async def _detection_scan_loop() -> None:
+    """Background Phase 2 detection: scan every tenant's new telemetry.
+
+    Runs inside the API process (no extra infra). Each scan resumes from
+    the per-tenant watermark, so restarts never double-scan. Failures are
+    logged and retried on the next interval — a bad scan must never kill
+    the API.
+    """
+    import asyncio as _asyncio
+
+    from sqlalchemy import select as _select
+
+    from app.detection.engine import scan_tenant as _scan_tenant
+    from app.domain.models import Tenant as _Tenant
+    from app.infrastructure.database import AsyncSessionLocal as _SessionLocal
+
+    interval = int(os.environ.get("DETECTION_SCAN_INTERVAL_S", "300"))
+    # Let the app finish starting before the first pass.
+    await _asyncio.sleep(60)
+    while True:
+        try:
+            async with _SessionLocal() as db:
+                tenant_ids = list((await db.execute(_select(_Tenant.id))).scalars().all())
+            for tid in tenant_ids:
+                try:
+                    async with _SessionLocal() as db:
+                        result = await _scan_tenant(db, tid)
+                    logger.info("detection_scan_complete", tenant_id=tid,
+                                events=result["events_scanned"], alerts=result["alerts_created"])
+                except Exception:
+                    logger.error("detection_scan_failed", tenant_id=tid, exc_info=True)
+        except Exception:
+            logger.error("detection_scan_loop_error", exc_info=True)
+        await _asyncio.sleep(interval)
 
 
 async def run_db_migrations() -> None:
@@ -91,6 +131,7 @@ def create_app() -> FastAPI:
     # API Versioning Router
     api_router = APIRouter()
     from app.api.v1 import api_keys, notifications, compliance, auth, incidents, alerts, stub_routes, ml_routes, integrations, agents, onboarding, dashboard, events
+    from app.detection import api as detection_api
     
     @api_router.get("/health", tags=["System"])
     async def health_check():
@@ -110,6 +151,7 @@ def create_app() -> FastAPI:
     api_router.include_router(onboarding.router, prefix="/onboarding", tags=["Onboarding"])
     api_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
     api_router.include_router(events.router, prefix="/events", tags=["Security Events"])
+    api_router.include_router(detection_api.router, prefix="/detection", tags=["Detection"])
 
     app.include_router(api_router, prefix=settings.API_V1_STR)
 

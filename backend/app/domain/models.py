@@ -128,9 +128,26 @@ class Alert(Base):
     rule_name: Mapped[str] = mapped_column(String(255))
     description: Mapped[str] = mapped_column(Text)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Phase 2 detection enrichment (nullable for pre-0008 rows)
+    severity: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    confidence: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    device_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    rule_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    evidence: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     tenant: Mapped[Tenant] = relationship(back_populates="alerts")
     incident: Mapped[Optional[Incident]] = relationship(back_populates="alerts")
+
+
+class DetectionWatermark(Base):
+    """Per-tenant resume point for the Phase 2 detection scan loop."""
+    __tablename__ = "detection_watermarks"
+
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), primary_key=True)
+    last_scan_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    events_scanned: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    alerts_created: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class ApiKey(Base):
     __tablename__ = "api_keys"

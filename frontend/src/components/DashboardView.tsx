@@ -206,19 +206,31 @@ export default function DashboardView() {
                         <span className="text-xs font-medium text-slate-200 truncate">{alert.title}</span>
                       </div>
                       <p className="text-[11px] text-slate-500 mt-1.5">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBlockingIp(alert.attacker_ip);
-                            setBlockReason(`Triggered by: ${alert.title} (${alert.attack_type})`);
-                          }}
-                          className="font-mono text-red-400/90 hover:text-red-300 hover:underline bg-red-950/20 px-1.5 py-0.5 rounded border border-red-900/40 transition-colors"
-                          title="Block this IP"
-                        >
-                          {alert.attacker_ip}
-                        </button>
+                        {alert.attacker_ip ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBlockingIp(alert.attacker_ip);
+                              setBlockReason(`Triggered by: ${alert.title} (${alert.attack_type})`);
+                            }}
+                            className="font-mono text-red-400/90 hover:text-red-300 hover:underline bg-red-950/20 px-1.5 py-0.5 rounded border border-red-900/40 transition-colors"
+                            title="Block this IP"
+                          >
+                            {alert.attacker_ip}
+                          </button>
+                        ) : (
+                          <span className="font-mono text-slate-500">
+                            {alert.device_id ? alert.device_id.slice(0, 12) : 'no source ip'}
+                          </span>
+                        )}
                         <span className="mx-2 text-slate-700">·</span>
                         <span className="text-slate-400">{alert.attack_type}</span>
+                        {alert.detector ? (
+                          <>
+                            <span className="mx-2 text-slate-700">·</span>
+                            <span className="text-slate-500">{alert.detector}</span>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
