@@ -12,6 +12,7 @@ import ReportingView from '@/components/ReportingView';
 import SettingsView from '@/components/SettingsView';
 import FederationDashboard from '@/components/FederationDashboard';
 import ChaosDashboard from '@/components/ChaosDashboard';
+import ApprovalsView from '@/components/ApprovalsView';
 import SaaSPaymentWall from '@/components/SaaSPaymentWall';
 
 const AttackGraphView = dynamic(() => import('@/components/AttackGraphView'), {
@@ -25,7 +26,7 @@ export default function Home() {
 
   const renderActiveView = () => {
     // Gate premium pages
-    const premiumPages = ['graph', 'executive', 'federation', 'chaos'];
+    const premiumPages = ['graph', 'executive', 'federation', 'chaos', 'approvals'];
     if (premiumPages.includes(activePage) && !isPremium) {
       return (
         <div className="py-12 bg-zinc-950/20 rounded-3xl border border-slate-900/40 p-6">
@@ -39,6 +40,8 @@ export default function Home() {
         return <DashboardView />;
       case 'incidents':
         return <IncidentsView />;
+      case 'approvals':
+        return <ApprovalsView />;
       case 'graph':
         return <AttackGraphView />;
       case 'memory':

@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     AUDIT_SECRET_KEY: str = ""
 
     GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-3.5-flash"
     GOOGLE_API_KEY: str = ""
     SOAR_API_KEY: str = ""
     SOAR_API_ENDPOINT: str = ""

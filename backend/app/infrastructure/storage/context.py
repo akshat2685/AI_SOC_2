@@ -26,8 +26,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         is_pg = bool(session.bind and session.bind.dialect.name == "postgresql")
         try:
             if tenant_id is not None and is_pg:
+                # NOTE: plain `SET rls.tenant_id = :tid` is a Postgres syntax
+                # error -- SET does not accept bind parameters. set_config()
+                # is the parameter-safe equivalent.
                 await session.execute(
-                    text("SET rls.tenant_id = :tid"), {"tid": str(tenant_id)}
+                    text("SELECT set_config('rls.tenant_id', :tid, false)"), {"tid": str(tenant_id)}
                 )
             yield session
         finally:
@@ -53,7 +56,7 @@ async def tenant_scope(tenant_id: Optional[int] = None) -> AsyncGenerator[AsyncS
                 # SET LOCAL needs a transaction block; use session-level SET
                 # and RESET it before returning the connection to the pool.
                 await session.execute(
-                    text("SET rls.tenant_id = :tid"), {"tid": str(tenant_id)}
+                    text("SELECT set_config('rls.tenant_id', :tid, false)"), {"tid": str(tenant_id)}
                 )
             try:
                 yield session

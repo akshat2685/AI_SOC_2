@@ -71,7 +71,14 @@ export default function CopilotDrawer() {
       });
 
       if (!response.ok) {
-        throw new Error('Copilot response failed');
+        let detail = '';
+        try {
+          const errBody = await response.json();
+          detail = errBody.detail || errBody.message || '';
+        } catch {
+          /* non-JSON error body */
+        }
+        throw new Error(detail || `Copilot request failed (${response.status})`);
       }
 
       const data = await response.json();
@@ -86,12 +93,12 @@ export default function CopilotDrawer() {
       };
 
       setMessages(prev => [...prev, copilotMessage]);
-    } catch (err) {
+    } catch (err: any) {
       setMessages(prev => [
         ...prev,
         {
           role: 'copilot',
-          content: 'Sorry, I encountered an error retrieving security context.',
+          content: err?.message || 'Sorry, I encountered an error retrieving security context.',
           timestamp: new Date().toISOString()
         }
       ]);

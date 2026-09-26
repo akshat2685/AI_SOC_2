@@ -34,7 +34,11 @@ async def create_preference(
     db: AsyncSession = Depends(get_db),
     current_user: TokenData = Depends(require_roles([RoleEnum.TENANT_ADMIN]))
 ):
-    db_pref = NotificationPreference(**pref_in.model_dump(), tenant_id=current_user.tenant_id)
+    # Use the auth-derived tenant_id (never trust the client-supplied one);
+    # model_dump() already contains tenant_id, so override it in the dict.
+    pref_data = pref_in.model_dump()
+    pref_data["tenant_id"] = current_user.tenant_id
+    db_pref = NotificationPreference(**pref_data)
     db.add(db_pref)
     await db.commit()
     await db.refresh(db_pref)
@@ -83,7 +87,8 @@ async def create_webhook(
     dump = wh_in.model_dump()
     dump["secret"] = encrypted_secret
     
-    db_wh = WebhookEndpoint(**dump, tenant_id=current_user.tenant_id)
+    dump["tenant_id"] = current_user.tenant_id  # auth tenant wins over client-supplied
+    db_wh = WebhookEndpoint(**dump)
     db.add(db_wh)
     await db.commit()
     await db.refresh(db_wh)

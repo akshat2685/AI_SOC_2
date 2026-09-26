@@ -70,3 +70,32 @@ def require_roles(roles: list[RoleEnum]):
             )
         return current_user
     return role_checker
+
+
+def require_roles_dual(roles: list[RoleEnum]):
+    """
+    Like require_roles, but also accepts API-key auth (via DualAuthMiddleware).
+
+    - No credentials at all -> 401 (closes the public-access hole).
+    - Bearer JWT -> role membership is enforced (GLOBAL_ADMIN bypasses).
+    - API key -> allowed (tenant-scoped secret, already scope-checked by
+      get_current_user_dual); API keys carry no role claim.
+    """
+    async def dual_role_checker(
+        request: Request,
+        security_scopes: SecurityScopes = SecurityScopes(),
+    ):
+        await get_current_user_dual(security_scopes, request)
+
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer ") and len(auth) > 7:
+            token_data = await get_current_user(auth[7:].strip())
+            if token_data.role not in roles and token_data.role != RoleEnum.GLOBAL_ADMIN:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Insufficient permissions",
+                )
+            return token_data
+        return None
+
+    return dual_role_checker
