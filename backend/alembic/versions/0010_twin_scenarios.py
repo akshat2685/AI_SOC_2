@@ -1,7 +1,7 @@
 """Alembic migration 0010: twin_scenarios for the closed intel->twin->learn loop."""
 
-revision = "0010"
-down_revision = "0009"
+revision = "0010_twin_scenarios"
+down_revision = "0009_autonomous_loop"
 branch_labels = None
 depends_on = None
 
