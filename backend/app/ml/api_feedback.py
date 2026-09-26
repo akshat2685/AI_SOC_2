@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_roles_dual
 from app.api.middleware.rate_limit_middleware import limiter
 from app.application.audit_logger import audit_logger
-from app.core.auth import current_tenant_id, current_user_id
+from app.core.auth import current_tenant_id, current_trace_id, current_user_id
 from app.domain.models import RoleEnum, TrainingFeedback
 from app.infrastructure.database import get_db
 from app.ml.feedback import SEVERITIES, _expand_vector
