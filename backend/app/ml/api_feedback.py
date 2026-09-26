@@ -108,3 +108,72 @@ async def feedback_stats(
         by_source[source][label] = int(count)
         total += int(count)
     return {"total": total, "by_source": by_source}
+
+
+_RETRAIN_STATE: dict = {"status": "idle", "detail": ""}
+
+
+@router.post("/ml/retrain")
+@limiter.limit("2/hour")
+async def trigger_retrain(
+    request: Request,
+    _auth=Depends(require_roles_dual([RoleEnum.TENANT_ADMIN])),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Trigger a gated retrain in the background (admin only).
+
+    Runs app/ml/retrain_with_feedback.py in a worker thread: consumes all
+    training_feedback rows (analyst verdicts + twin evasions + intel rows),
+    retrains under the regression gate, and atomically swaps the artifacts.
+    On success the live model cache is reloaded, so the new version serves
+    immediately. Fail-closed: gate failures change nothing.
+    """
+    import threading
+
+    if _RETRAIN_STATE["status"] == "running":
+        return {"status": "already_running", "detail": _RETRAIN_STATE["detail"]}
+
+    from sqlalchemy import select as _select
+    count = (await db.execute(
+        _select(func.count(TrainingFeedback.id)))).scalar() or 0
+    if count == 0:
+        return {"status": "nothing_to_learn",
+                "detail": "training_feedback is empty; resolve incidents or run the twin first."}
+
+    _RETRAIN_STATE.update(status="running",
+                          detail=f"retraining on {count} feedback rows...")
+
+    def _work():
+        try:
+            from app.ml import inference as _inf
+            from app.ml import retrain_with_feedback as _rt
+            rc = _rt.main()
+            if rc == 0:
+                _inf.reload_models()
+                _RETRAIN_STATE.update(
+                    status="succeeded",
+                    detail=f"retrain passed gate; models reloaded ({_inf.MODEL_VERSION})")
+            else:
+                _RETRAIN_STATE.update(
+                    status="gate_failed",
+                    detail="regression gate refused the candidate; artifacts untouched")
+        except Exception as exc:  # never leave the state stuck
+            _RETRAIN_STATE.update(status="error", detail=str(exc)[:300])
+
+    threading.Thread(target=_work, daemon=True).start()
+    audit_logger.info("ml_retrain_triggered", extra={
+        "trace_id": None, "user_id": current_user_id(),
+        "tenant_id": current_tenant_id(), "feedback_rows": count,
+    })
+    return {"status": "started", "feedback_rows": count,
+            "detail": "retraining in background; poll /ml/retrain/status"}
+
+
+@router.get("/ml/retrain/status")
+async def retrain_status(
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+) -> dict:
+    """Retrain job state (viewer+)."""
+    from app.ml import inference as _inf
+    return {"retrain": dict(_RETRAIN_STATE),
+            "live_model_version": _inf.MODEL_VERSION}

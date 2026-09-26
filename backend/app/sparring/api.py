@@ -181,3 +181,145 @@ async def sparring_coverage(
         "evasion_training_rows_available": len(get_evasion_training_rows()),
         "note": "Coverage measured on simulated technique footprints; not real-attack efficacy.",
     }
+
+
+@router.get("/scenarios")
+@limiter.limit("60/minute")
+async def list_twin_scenarios(
+    request: Request,
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+    db: AsyncSession = Depends(get_db),
+    limit: int = 20,
+    detected: bool | None = None,
+) -> Dict[str, Any]:
+    """Recent intel-driven twin scenarios with outcomes + evasion analysis.
+
+    The closed loop made visible: each scenario shows where the attack
+    came from (fresh intel IoC, real alert replay), whether the engine
+    caught it, and — for evasions — the SOC's own analysis of what
+    happened, why it evaded, and how to defend.
+    """
+    from sqlalchemy import desc, select
+
+    from app.sparring.models_db import TwinScenario
+
+    stmt = select(TwinScenario).order_by(desc(TwinScenario.created_at)).limit(min(limit, 100))
+    if detected is not None:
+        stmt = stmt.where(TwinScenario.detected == detected)
+    rows = (await db.execute(stmt)).scalars().all()
+    return {
+        "simulated": True,
+        "count": len(rows),
+        "scenarios": [
+            {
+                "id": r.id,
+                "source": r.source,
+                "technique_id": r.technique_id,
+                "tactic": r.tactic,
+                "scenario": r.scenario,
+                "detected": r.detected,
+                "detector": r.detector,
+                "rule_id": r.rule_id,
+                "analysis": r.analysis,
+                "training_feedback_id": r.training_feedback_id,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.post("/intel-pass")
+@limiter.limit("10/minute")
+async def run_intel_pass(
+    request: Request,
+    _auth=Depends(require_roles_dual(WRITE_ROLES)),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """Manually trigger one intel-driven twin pass (same as the daily loop).
+
+    Builds scenarios from the freshest intel IoCs + recent real alert
+    replays, scores them against the real engine, analyzes evasions, and
+    persists everything to twin_scenarios + training_feedback.
+    """
+    from app.sparring import defense as defense_mod
+    from app.sparring import intel_driven as intel_mod
+    from app.sparring.models_db import TwinScenario
+    from app.sparring.runner import _evasion_row, _score_events
+
+    ioc_scenarios = await intel_mod.build_ioc_scenarios(db)
+    replay_scenarios = await intel_mod.build_replay_scenarios(db)
+    scenarios = ioc_scenarios + replay_scenarios
+
+    from app.sparring.loop import _first_tenant_id, _intel_state
+    tenant_id = await _first_tenant_id(db)
+
+    results: list[dict] = []
+    training_rows: list[dict] = []
+    for sc in scenarios:
+        score = _score_events(sc["events"])
+        analysis: dict = {}
+        if not score.get("detected"):
+            analysis = defense_mod.analyze_outcome(
+                sc, score, await _intel_state(db, sc))
+            row = _evasion_row(sc.get("technique_id") or "unknown", sc["events"])
+            if row:
+                training_rows.append({
+                    "feature_vector": row["features"],
+                    "technique_id": row["technique_id"],
+                    "tactic": row["tactic"],
+                    "label": "attack",
+                    "severity": row["severity"],
+                    "device_id": None,
+                })
+        rec = TwinScenario(
+            source=sc["source"],
+            technique_id=sc.get("technique_id"),
+            tactic=sc.get("tactic"),
+            scenario={
+                "scenario_id": sc.get("scenario_id"),
+                "description": sc.get("description"),
+                "ioc": sc.get("ioc"),
+                "replay_of_alert_id": sc.get("replay_of_alert_id"),
+                "rule_id": sc.get("rule_id"),
+                "event_count": len(sc["events"]),
+                "simulated": True,
+            },
+            detected=bool(score.get("detected")),
+            detector=score.get("detector"),
+            rule_id=score.get("rule_id"),
+            analysis=analysis,
+        )
+        db.add(rec)
+        results.append({
+            "source": sc["source"],
+            "technique_id": sc.get("technique_id"),
+            "detected": bool(score.get("detected")),
+            "rule_id": score.get("rule_id"),
+            "description": sc.get("description"),
+        })
+
+    recorded = 0
+    if training_rows and tenant_id is not None:
+        from app.ml import feedback as feedback_mod
+        res = await feedback_mod.record_sparring_rows(db, tenant_id, training_rows)
+        recorded = res.get("recorded", 0)
+    else:
+        await db.commit()
+
+    audit_logger.info("twin_intel_pass", extra={
+        "trace_id": current_trace_id(), "user_id": current_user_id(),
+        "tenant_id": current_tenant_id(),
+        "scenarios": len(scenarios),
+        "evasions": len(training_rows),
+        "training_rows": recorded,
+    })
+    return {
+        "simulated": True,
+        "scenarios_run": len(scenarios),
+        "ioc_scenarios": len(ioc_scenarios),
+        "replay_scenarios": len(replay_scenarios),
+        "evasions": len(training_rows),
+        "training_rows_recorded": recorded,
+        "results": results,
+    }

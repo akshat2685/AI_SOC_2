@@ -9,6 +9,7 @@ from app.domain.models import Base
 # Import model modules so their tables register on Base.metadata for autogenerate.
 import app.intel.models  # noqa: F401
 import app.response.models  # noqa: F401
+import app.sparring.models_db  # noqa: F401
 
 config = context.config
 

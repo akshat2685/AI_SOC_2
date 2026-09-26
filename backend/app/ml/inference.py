@@ -52,6 +52,24 @@ def models_available() -> bool:
     )
 
 
+def reload_models() -> dict:
+    """Drop the inference caches so freshly retrained artifacts load.
+
+    Called after a gated retrain succeeds. Also re-reads the schema so
+    MODEL_VERSION reflects the new version.
+    """
+    global _schema_cache, MODEL_VERSION
+    _cache.clear()
+    _schema_cache = None
+    try:
+        schema = _schema()
+        version = schema.get("model_version", MODEL_VERSION)
+    except Exception:
+        version = MODEL_VERSION
+    MODEL_VERSION = version
+    return {"reloaded": True, "model_version": version}
+
+
 def build_vector(features: dict) -> np.ndarray:
     """Build the ordered feature vector. Unknown numerics default to 0."""
     s = _schema()
