@@ -38,8 +38,8 @@ MAX_IOC_SCENARIOS = 12
 MAX_REPLAY_SCENARIOS = 8
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _now_dt() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _base_event(event_type: str) -> dict:
@@ -47,7 +47,7 @@ def _base_event(event_type: str) -> dict:
         "id": f"twin-{uuid.uuid4().hex[:8]}",
         "device_id": TWIN_DEVICE_ID,
         "event_type": event_type,
-        "observed_at": _now_iso(),
+        "observed_at": _now_dt(),
         "simulated": True,
     }
 
