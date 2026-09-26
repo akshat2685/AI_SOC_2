@@ -69,6 +69,23 @@ _PERSISTENCE_MARKERS = (
 _COMMON_OUTBOUND_PORTS = {80, 443, 53, 123, 993, 995, 587, 465, 22, 21, 25, 110, 143, 3389}
 
 
+def _section(event: dict) -> dict:
+    """Return the typed section of an event.
+
+    The ingest API stores the typed section unwrapped (payload IS the
+    section), while the raw sensor record nests it under its type key.
+    Handle both shapes defensively.
+    """
+    payload = event.get("payload") or {}
+    key = {
+        "process": "process", "network": "network", "file": "file",
+        "auth": "auth", "dns": "dns",
+    }.get(str(event.get("event_type") or ""))
+    if key and isinstance(payload.get(key), dict):
+        return payload[key]
+    return payload if isinstance(payload, dict) else {}
+
+
 def _fingerprint(*parts: str) -> str:
     h = hashlib.sha256("|".join(parts).encode("utf-8", errors="replace")).hexdigest()
     return h[:16]
@@ -87,7 +104,7 @@ def _is_public_ip(ip: str) -> bool | None:
 def _rule_suspicious_cmdline(event: dict) -> dict | None:
     if event.get("event_type") != "process":
         return None
-    proc = (event.get("payload") or {}).get("process") or {}
+    proc = _section(event)
     cmdline = proc.get("cmdline") or []
     joined = " ".join(cmdline) if isinstance(cmdline, list) else str(cmdline)
     if not joined:
@@ -115,7 +132,7 @@ def _rule_suspicious_cmdline(event: dict) -> dict | None:
 def _rule_persistence_change(event: dict) -> dict | None:
     if event.get("event_type") != "file":
         return None
-    f = (event.get("payload") or {}).get("file") or {}
+    f = _section(event)
     path = str(f.get("path") or "")
     action = str(f.get("action") or "")
     if action not in ("created", "modified"):
@@ -139,7 +156,7 @@ def _rule_persistence_change(event: dict) -> dict | None:
 def _rule_rare_outbound_port(event: dict) -> dict | None:
     if event.get("event_type") != "network":
         return None
-    n = (event.get("payload") or {}).get("network") or {}
+    n = _section(event)
     dst_ip = str(n.get("dst_ip") or "")
     try:
         dst_port = int(n.get("dst_port") or 0)
@@ -167,7 +184,7 @@ def _rule_rare_outbound_port(event: dict) -> dict | None:
 def _rule_first_seen_binary(event: dict, known_hashes: set[str]) -> dict | None:
     if event.get("event_type") != "process":
         return None
-    proc = (event.get("payload") or {}).get("process") or {}
+    proc = _section(event)
     h = proc.get("hash_sha256")
     if not h or h in known_hashes:
         return None

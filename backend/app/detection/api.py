@@ -27,13 +27,20 @@ WRITE_ROLES = [RoleEnum.TENANT_ADMIN, RoleEnum.TENANT_ANALYST]
 @limiter.limit("10/minute")
 async def trigger_scan(
     request: Request,
+    lookback_hours: int | None = None,
     db: AsyncSession = Depends(get_db),
     _auth=Depends(require_roles_dual(WRITE_ROLES)),
 ) -> Dict[str, Any]:
-    """Run the detection engine over new telemetry for the current tenant."""
+    """Run the detection engine over new telemetry for the current tenant.
+
+    Pass ?lookback_hours=N to re-scan the trailing N hours instead of
+    resuming from the watermark (dedup stretches to match).
+    """
     tenant_id = current_tenant_id.get() or 1
     try:
-        result = await scan_tenant(db, tenant_id)
+        result = await scan_tenant(db, tenant_id, lookback_hours=lookback_hours)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Detection scan failed: {exc}")
 

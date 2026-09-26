@@ -34,6 +34,19 @@ def bucket_by_device_hour(events: list[dict]) -> dict[tuple[str, str], list[dict
     return buckets
 
 
+def _section(event: dict) -> dict:
+    """Typed section of an event; stored payloads are unwrapped, raw sensor
+    records nest the section under its type key. Handle both."""
+    payload = event.get("payload") or {}
+    key = {
+        "process": "process", "network": "network", "file": "file",
+        "auth": "auth", "dns": "dns",
+    }.get(str(event.get("event_type") or ""))
+    if key and isinstance(payload.get(key), dict):
+        return payload[key]
+    return payload if isinstance(payload, dict) else {}
+
+
 def build_hourly_features(
     window_events: list[dict],
     window_start: datetime,
@@ -58,17 +71,16 @@ def build_hourly_features(
 
     for e in window_events:
         et = e.get("event_type")
-        payload = e.get("payload") or {}
         if et == "auth":
-            a = payload.get("auth") or {}
+            a = _section(e)
             if a.get("result") in ("failed", "failure", "denied"):
                 failed_logins += 1
         elif et == "network":
-            n = payload.get("network") or {}
+            n = _section(e)
             if n.get("dst_ip"):
                 dst_ips.add(str(n["dst_ip"]))
         elif et == "process":
-            p = payload.get("process") or {}
+            p = _section(e)
             name = str(p.get("name") or "").lower()
             if name:
                 proc_names.append(name)

@@ -62,7 +62,7 @@ async def _known_hashes(db: AsyncSession, tenant_id: int, since: datetime) -> se
     """Distinct process binary hashes seen in the trailing history window."""
     try:
         stmt = (
-            select(SecurityEvent.payload["process"]["hash_sha256"].astext)
+            select(SecurityEvent.payload["hash_sha256"].astext)
             .where(
                 SecurityEvent.tenant_id == tenant_id,
                 SecurityEvent.event_type == EventType.PROCESS,
@@ -82,7 +82,7 @@ async def _known_process_names(db: AsyncSession, tenant_id: int, since: datetime
     try:
         stmt = select(
             SecurityEvent.device_id,
-            SecurityEvent.payload["process"]["name"].astext,
+            SecurityEvent.payload["name"].astext,
         ).where(
             SecurityEvent.tenant_id == tenant_id,
             SecurityEvent.event_type == EventType.PROCESS,
@@ -136,11 +136,23 @@ def _event_to_dict(e: SecurityEvent) -> dict:
     }
 
 
-async def scan_tenant(db: AsyncSession, tenant_id: int) -> dict:
-    """Run one detection pass for a tenant. Returns a summary dict."""
+async def scan_tenant(db: AsyncSession, tenant_id: int, lookback_hours: int | None = None) -> dict:
+    """Run one detection pass for a tenant. Returns a summary dict.
+
+    lookback_hours: when set, ignore the watermark and scan this many
+    trailing hours (dedup window stretches to match, so a deliberate
+    rescan does not duplicate alerts).
+    """
     now = _utcnow()
     wm = await _get_watermark(db, tenant_id)
-    since = wm.last_scan_at or (now - FIRST_SCAN_LOOKBACK)
+    if lookback_hours is not None:
+        if not (1 <= lookback_hours <= 24 * 30):
+            raise ValueError("lookback_hours must be between 1 and 720")
+        since = now - timedelta(hours=lookback_hours)
+        dedup_window = max(DEDUP_WINDOW, timedelta(hours=lookback_hours))
+    else:
+        since = wm.last_scan_at or (now - FIRST_SCAN_LOOKBACK)
+        dedup_window = DEDUP_WINDOW
 
     stmt = (
         select(SecurityEvent)
@@ -154,7 +166,7 @@ async def scan_tenant(db: AsyncSession, tenant_id: int) -> dict:
     history_since = now - timedelta(days=HISTORY_DAYS)
     known_hashes = await _known_hashes(db, tenant_id, history_since)
     known_names = await _known_process_names(db, tenant_id, history_since)
-    seen_fps = await _recent_fingerprints(db, tenant_id, now - DEDUP_WINDOW)
+    seen_fps = await _recent_fingerprints(db, tenant_id, now - dedup_window)
 
     rules_fired: dict[str, int] = defaultdict(int)
     new_alerts: list[Alert] = []
