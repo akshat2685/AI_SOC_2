@@ -299,6 +299,8 @@ def match_batch_rules(event_dicts: list[dict]) -> list[dict]:
         if len(attempts) < BRUTE_FORCE_FAILED_THRESHOLD:
             continue
         usernames = sorted({str(a.get("username") or a.get("user") or "?") for a in attempts})
+        src_ips = sorted({str(a.get("src_ip") or "").strip() for a in attempts
+                          if str(a.get("src_ip") or "").strip()})
         ts = latest_ts.get(device_id)
         hour_key = ts.strftime("%Y-%m-%dT%H") if hasattr(ts, "strftime") else "unknown"
         user_list = ", ".join(usernames[:5])
@@ -312,12 +314,15 @@ def match_batch_rules(event_dicts: list[dict]) -> list[dict]:
             "title": f"Brute-force login attempts on {device_id}",
             "description": (
                 f"{len(attempts)} failed authentication attempts observed for "
-                f"device {device_id} (usernames: {user_list})"
+                f"device {device_id} (usernames: {user_list}"
+                + (f"; sources: {', '.join(src_ips[:5])}" if src_ips else "; source IPs not recorded")
+                + ")"
             ),
             "fingerprint": _fingerprint("brute-force-auth", device_id, hour_key),
             "evidence": {
                 "failed_attempts": len(attempts),
                 "usernames": usernames[:20],
+                "src_ips": src_ips[:20],
                 "hour": hour_key,
             },
             "device_id": device_id,

@@ -111,6 +111,27 @@ def _propose_actions(alert: Alert) -> list[dict]:
         if path:
             actions.append({"action": "remove_persistence", "params": {"path": path}})
 
+    elif rule_id == "brute-force-auth":
+        # Block the attacking source IP(s), if the auth events recorded them
+        # and they are public. Local brute force (no src_ip) has nothing
+        # safe to block automatically.
+        for src_ip in (ev.get("src_ips") or [])[:5]:
+            ip = str(src_ip or "").strip()
+            try:
+                if ip and ipaddress.ip_address(ip).is_global:
+                    actions.append({"action": "block_ip", "params": {"ip": ip}})
+            except ValueError:
+                continue
+
+    elif rule_id == "known-c2-connection":
+        # The destination is on a curated malicious list — block it.
+        ip = str(ev.get("matched_value") or ev.get("dst_ip") or "").strip()
+        try:
+            if ip and ipaddress.ip_address(ip).is_global:
+                actions.append({"action": "block_ip", "params": {"ip": ip}})
+        except ValueError:
+            pass
+
     # Belt-and-braces: drop anything outside the allowlist, even though the
     # branches above only ever produce allowlisted actions.
     return [a for a in actions if a["action"] in COMMAND_ACTIONS]

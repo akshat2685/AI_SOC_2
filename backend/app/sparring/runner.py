@@ -79,6 +79,18 @@ def _score_events(events: list[dict]) -> dict:
             "events_until_detection": (first_idx or 0) + 1,
         }
 
+    # --- batch rule pass: same call the engine makes (brute-force-auth) ---
+    for f in rules_mod.match_batch_rules(events):
+        if f["rule_id"] not in all_rule_ids:
+            all_rule_ids.append(f["rule_id"])
+        return {
+            "detected": True,
+            "detector": rules_mod.RULES_VERSION,
+            "rule_id": f["rule_id"],
+            "all_rule_ids": all_rule_ids,
+            "events_until_detection": len(events),
+        }
+
     # --- anomaly pass: same bucketing + features + model the engine uses ---
     if not ml_inference.models_available():
         logger.info("ml models unavailable; twin anomaly pass skipped")
