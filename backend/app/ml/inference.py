@@ -17,7 +17,7 @@ import numpy as np
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _ART = os.path.join(_DIR, "artifacts")
 
-MODEL_VERSION = "attack-grounded-v2"
+MODEL_VERSION = "attack-grounded-v3"
 TRAINED_ON = "synthetic-soc-telemetry-v1"
 WARNING = "Models trained on synthetic telemetry v1 — retrain on real tenant data before production use."
 ZERO_DAY_NOTE = (

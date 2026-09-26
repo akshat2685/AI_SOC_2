@@ -1,4 +1,4 @@
-"""Train SOC ML models on ATT&CK-grounded SYNTHETIC telemetry v2.
+"""Train SOC ML models on ATT&CK-grounded SYNTHETIC telemetry v3.
 
 Models:
   1. triage_clf      - RandomForestClassifier predicting is_attack
@@ -11,11 +11,13 @@ Models:
 
 Everything is trained on synthetic data (see threat_data.py): 24 MITRE
 ATT&CK technique footprints + 1 unknown 0-day proxy, with the benign class
-anchored on one machine's unlabeled real telemetry. Metrics measure how
-well the models separate the CONSTRUCTED distribution -- they are NOT
-estimates of real-world detection performance. Do NOT treat these models
-as production-ready: retrain on real labeled tenant data before any
-production use.
+spread across 5 device archetypes (windows-dev anchored on one machine's
+unlabeled real telemetry, windows-office, linux-server, macos-laptop,
+overnight-idle) so the models generalize to any tenant's machine, not just
+one developer's box. Metrics measure how well the models separate the
+CONSTRUCTED distribution -- they are NOT estimates of real-world detection
+performance. Do NOT treat these models as production-ready: retrain on real
+labeled tenant data before any production use.
 """
 
 import json
@@ -37,7 +39,7 @@ from threat_data import FEATURE_COLUMNS, generate
 HERE = os.path.dirname(os.path.abspath(__file__))
 ARTIFACTS = os.path.join(HERE, "artifacts")
 
-MODEL_VERSION = "attack-grounded-v2"
+MODEL_VERSION = "attack-grounded-v3"
 
 
 def build_features(df):
@@ -138,16 +140,19 @@ def main():
         "technique_classes": sorted(df["technique_id"].unique().tolist()),
         "note": ("Feature order and encodings for inference. Rebuild the "
                  "feature vector in feature_columns order before calling "
-                 "predict(). Trained on ATT&CK-grounded synthetic data v2: "
-                 "24 technique footprints + 1 unknown proxy; benign anchored "
-                 "on one machine's unlabeled real telemetry."),
+                 "predict(). Trained on ATT&CK-grounded synthetic data v3: "
+                 "24 technique footprints + 1 unknown proxy; benign spread "
+                 "across 5 device archetypes (windows-dev, windows-office, "
+                 "linux-server, macos-laptop, overnight-idle) so the model "
+                 "generalizes across tenants' machines. Column order is "
+                 "identical to v2 -- the live engine needs no changes."),
     }
     with open(os.path.join(ARTIFACTS, "feature_schema.json"), "w") as f:
         json.dump(schema, f, indent=2)
 
     report = {
         "model_version": MODEL_VERSION,
-        "trained_on": "attack-grounded-synthetic-v2 (threat_data.py, seed 42)",
+        "trained_on": "attack-grounded-synthetic-v3 (threat_data.py, seed 42)",
         "warning": "retrain on real labeled tenant data before production use",
         "n_samples": n_samples,
         "n_train": int(len(train_idx)),
@@ -155,6 +160,8 @@ def main():
         "seed": 42,
         "rows_by_tactic": {k: int(v)
                            for k, v in df["tactic"].value_counts().items()},
+        "rows_by_archetype": {k: int(v)
+                              for k, v in df["archetype"].value_counts().items()},
         "rows_by_provenance": {k: int(v)
                                for k, v in df["provenance"].value_counts().items()},
         "rows_by_severity": {k: int(v)
@@ -204,9 +211,11 @@ def main():
             "Training data is synthetic and ATT&CK-grounded, not real attack "
             "traffic. Metrics measure separability of the constructed "
             "distribution, NOT expected real-world detection performance.",
-            "Benign class is anchored on a single machine's 961 UNLABELED "
-            "events (assumed benign); some 'real-anchored' rows may unknowingly "
-            "describe malicious activity.",
+            "Benign class spans 5 device archetypes but is still synthetic "
+            "except the windows-dev archetype (one machine's 961 UNLABELED "
+            "events, assumed benign; some 'real-anchored' rows may "
+            "unknowingly describe malicious activity). Real tenant machines "
+            "will deviate from all 5 archetypes.",
             "25 attack classes (24 named techniques + 1 unknown proxy) cover a "
             "small subset of the full MITRE ATT&CK matrix (200+ techniques).",
             "Technique feature footprints are hand-designed approximations, "
@@ -221,7 +230,7 @@ def main():
 
     # ---- print metrics ----
     print("=" * 64)
-    print("ATT&CK-GROUNDED v2 - TRAINING REPORT (SYNTHETIC)")
+    print("ATT&CK-GROUNDED v3 - TRAINING REPORT (SYNTHETIC)")
     print("=" * 64)
     print(f"samples: {n_samples}  train: {len(train_idx)}  test: {len(test_idx)}")
     print()

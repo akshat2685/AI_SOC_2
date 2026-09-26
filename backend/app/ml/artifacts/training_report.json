@@ -1,6 +1,6 @@
 {
-  "model_version": "attack-grounded-v2",
-  "trained_on": "attack-grounded-synthetic-v2 (threat_data.py, seed 42)",
+  "model_version": "attack-grounded-v3",
+  "trained_on": "attack-grounded-synthetic-v3 (threat_data.py, seed 42)",
   "warning": "retrain on real labeled tenant data before production use",
   "n_samples": 40000,
   "n_train": 32000,
@@ -20,10 +20,18 @@
     "lateral-movement": 1500,
     "privilege-escalation": 1500
   },
+  "rows_by_archetype": {
+    "attack": 20000,
+    "overnight-idle": 4000,
+    "windows-office": 4000,
+    "macos-laptop": 4000,
+    "linux-server": 4000,
+    "windows-dev": 4000
+  },
   "rows_by_provenance": {
     "attack-synthetic": 20000,
-    "template": 10000,
-    "real-anchored": 10000
+    "template": 16000,
+    "real-anchored": 4000
   },
   "rows_by_severity": {
     "LOW": 20000,
@@ -47,30 +55,30 @@
         "benign",
         "attack"
       ],
-      "accuracy": 0.9507,
-      "macro_precision": 0.9509,
-      "macro_recall": 0.9507,
-      "macro_f1": 0.9507,
+      "accuracy": 0.9831,
+      "macro_precision": 0.9831,
+      "macro_recall": 0.9831,
+      "macro_f1": 0.9831,
       "per_class": {
         "benign": {
-          "precision": 0.9597,
-          "recall": 0.941,
-          "f1": 0.9503
+          "precision": 0.983,
+          "recall": 0.9832,
+          "f1": 0.9831
         },
         "attack": {
-          "precision": 0.9421,
-          "recall": 0.9605,
-          "f1": 0.9512
+          "precision": 0.9832,
+          "recall": 0.983,
+          "f1": 0.9831
         }
       },
       "confusion_matrix": [
         [
-          3764,
-          236
+          3933,
+          67
         ],
         [
-          158,
-          3842
+          68,
+          3932
         ]
       ],
       "confusion_matrix_labels": [
@@ -95,56 +103,56 @@
         "LOW",
         "MEDIUM"
       ],
-      "accuracy": 0.8649,
-      "macro_precision": 0.7636,
-      "macro_recall": 0.8467,
-      "macro_f1": 0.7934,
+      "accuracy": 0.893,
+      "macro_precision": 0.7873,
+      "macro_recall": 0.8563,
+      "macro_f1": 0.8116,
       "per_class": {
         "CRITICAL": {
-          "precision": 0.5182,
-          "recall": 0.8522,
-          "f1": 0.6445
+          "precision": 0.5195,
+          "recall": 0.8396,
+          "f1": 0.6418
         },
         "HIGH": {
-          "precision": 0.8649,
-          "recall": 0.7911,
-          "f1": 0.8263
+          "precision": 0.8996,
+          "recall": 0.8104,
+          "f1": 0.8527
         },
         "LOW": {
-          "precision": 0.9694,
-          "recall": 0.9263,
-          "f1": 0.9473
+          "precision": 0.9822,
+          "recall": 0.9768,
+          "f1": 0.9794
         },
         "MEDIUM": {
-          "precision": 0.702,
-          "recall": 0.8174,
-          "f1": 0.7553
+          "precision": 0.7482,
+          "recall": 0.7983,
+          "f1": 0.7724
         }
       },
       "confusion_matrix": [
         [
-          271,
-          34,
+          267,
+          40,
           0,
-          13
+          11
         ],
         [
           205,
-          2003,
-          77,
-          247
+          2052,
+          35,
+          240
         ],
         [
           0,
-          156,
-          3705,
-          139
+          35,
+          3907,
+          58
         ],
         [
-          47,
-          123,
-          40,
-          940
+          42,
+          154,
+          36,
+          918
         ]
       ],
       "confusion_matrix_labels": [
@@ -162,18 +170,18 @@
       },
       "trained_on": "benign-only training rows (0-day story: learns normal, flags deviations)",
       "n_benign_train_rows": 16000,
-      "detection_rate_unknown_holdout": 0.9357,
-      "false_positive_rate_benign_holdout": 0.0505,
+      "detection_rate_unknown_holdout": 0.9812,
+      "false_positive_rate_benign_holdout": 0.0442,
       "n_unknown_holdout_rows": 373,
       "n_benign_holdout_rows": 4000
     }
   },
   "limitations": [
     "Training data is synthetic and ATT&CK-grounded, not real attack traffic. Metrics measure separability of the constructed distribution, NOT expected real-world detection performance.",
-    "Benign class is anchored on a single machine's 961 UNLABELED events (assumed benign); some 'real-anchored' rows may unknowingly describe malicious activity.",
+    "Benign class spans 5 device archetypes but is still synthetic except the windows-dev archetype (one machine's 961 UNLABELED events, assumed benign; some 'real-anchored' rows may unknowingly describe malicious activity). Real tenant machines will deviate from all 5 archetypes.",
     "25 attack classes (24 named techniques + 1 unknown proxy) cover a small subset of the full MITRE ATT&CK matrix (200+ techniques).",
     "Technique feature footprints are hand-designed approximations, not measured from real intrusions; jitter does not equal adversary variation.",
     "Retrain on real labeled tenant data before any production use."
   ],
-  "elapsed_seconds": 8.8
+  "elapsed_seconds": 11.5
 }

@@ -1,4 +1,4 @@
-"""ATT&CK-grounded v2 synthetic SOC telemetry generator.
+"""ATT&CK-grounded v3 synthetic SOC telemetry generator.
 
 Produces seeded, reproducible device-hour feature rows for ML training.
 
@@ -7,12 +7,26 @@ jittered approximation of one MITRE ATT&CK technique's observable footprint
 in the 15 engineered features below. These are NOT real attack traces, NOT
 real tenant data, and must never be presented as such.
 
-The benign class is ANCHORED on real telemetry (see real_baseline.json:
-961 unlabeled events from one workstation, device agt-11577e30bab3,
-assumed benign): hour concentration, port mix, and process mix follow the
-baseline's distributions. Rows from that source carry provenance
-"real-anchored". Because the source events are UNLABELED, some
-"real-anchored" rows may unknowingly describe malicious activity.
+v3 CHANGE (multi-user generalization): the benign class is no longer
+anchored on one machine. It is 5 device archetypes (~4,000 rows each,
+20k total) so the models learn "normal" across the device kinds that will
+install this sensor:
+  windows-dev     - the v2 real-anchored distribution (real_baseline.json:
+                    961 unlabeled events from one workstation, assumed
+                    benign). Provenance "real-anchored".
+  windows-office  - office workstation: outlook/teams/excel/word/chrome,
+                    ports 443/993/587, weekday business hours.
+                    Provenance "template".
+  linux-server    - sshd/nginx/cron/apt/systemd, ports 22/80/443, steady
+                    24h low volume with occasional cron spikes.
+                    Provenance "template".
+  macos-laptop    - safari/xcode/homebrew/spotify, ports 443/5223,
+                    hours 8-23. Provenance "template".
+  overnight-idle  - near-zero events, hours 1-5, any machine.
+                    Provenance "template".
+Each archetype bakes its own process/port/hour/volume mix into the
+feature distributions honestly (e.g. office rows use common ports so
+uncommon_port_hits_1h is near zero; idle rows are near-zero everywhere).
 
 Feature columns (EXACT order, also written to feature_schema.json):
   hour_of_day, day_of_week, off_hours, failed_logins_1h, unique_dst_ips_1h,
@@ -20,7 +34,8 @@ Feature columns (EXACT order, also written to feature_schema.json):
   uncommon_port_hits_1h, persistence_events_1h, suspicious_cmdline_hits_1h,
   asset_workstation, asset_server, asset_database
 
-Label columns: is_attack (0/1), tactic, technique_id, severity, provenance.
+Label columns: is_attack (0/1), tactic, technique_id, severity, provenance,
+archetype ("windows-dev" ... for benign, "attack" for attack rows).
 
 Severity mapping by tactic:
   impact -> CRITICAL
@@ -52,7 +67,8 @@ FEATURE_COLUMNS = [
     "asset_server",
     "asset_database",
 ]
-LABEL_COLUMNS = ["is_attack", "tactic", "technique_id", "severity", "provenance"]
+LABEL_COLUMNS = ["is_attack", "tactic", "technique_id", "severity",
+                 "provenance", "archetype"]
 
 SEVERITY_BY_TACTIC = {
     "impact": "CRITICAL",
@@ -360,24 +376,26 @@ TECHNIQUES = {
     "unknown": ("unknown", _unknown),
 }
 
-# Rows per class: benign ~50%, rest spread across 24 techniques + unknown.
-N_BENIGN_REAL = 10000
-N_BENIGN_TEMPLATE = 10000
+# Rows per class: 20k benign (5 archetypes x 4k) + 18k across 24
+# techniques (750 each) + 2k unknown proxy = 40k total.
+N_PER_ARCHETYPE = 4000
 N_PER_TECHNIQUE = 750
 N_UNKNOWN = 2000
 
 
 # ---------------------------------------------------------------------------
-# Benign generators
+# Benign generators: 5 device archetypes (multi-user generalization).
+# Each returns a raw feature dict; generate() adds labels + one-hots.
 # ---------------------------------------------------------------------------
 
-def _benign_real(rng, n):
-    """Benign rows anchored on real_baseline.json distributions.
+def _benign_windows_dev(rng, n):
+    """windows-dev: the v2 real-anchored distribution (real_baseline.json).
 
-    Hour mix from the baseline's hour counts (11 dominates); single
-    workstation (the capture device); port mix 8081-heavy, which is
-    "uncommon" per the detection rule list -- hence the high
-    uncommon_port_hits_1h. Provenance: "real-anchored".
+    One developer workstation's actual telemetry: chrome/brave/node/
+    powershell, 8081-heavy ports, hour-11 peak on a Saturday. Provenance:
+    "real-anchored". Note 8081 is "uncommon" per the detection rule list,
+    so these rows honestly carry HIGH uncommon_port_hits_1h -- this
+    tenant's normal includes it.
     """
     hour_choices = np.array(list(_BASELINE_HOUR_P.keys()))
     hour_probs = np.array(list(_BASELINE_HOUR_P.values()))
@@ -397,41 +415,126 @@ def _benign_real(rng, n):
     }
 
 
-def _benign_browsing(rng, n):
-    return _mk(rng, n, off_prob=0.15, asset_p=(0.90, 0.08, 0.02),
-               unique_dst_ips_1h=rng.poisson(12, n),
-               bytes_out_mb_1h=rng.lognormal(2.5, 0.8, n),
-               dns_query_entropy=rng.beta(2.5, 5.0, n),
-               uncommon_port_hits_1h=rng.poisson(2, n),
-               new_process_rarity=rng.beta(1.5, 8.0, n))
+def _benign_windows_office(rng, n):
+    """windows-office: outlook/teams/excel/word/chrome on common ports.
+
+    Weekday business hours (9-17 => off_hours=0), ports 443/993/587 are
+    all in the detection rules' common-port list, so uncommon_port_hits_1h
+    stays near zero. Provenance: "template".
+    """
+    return {
+        "hour_of_day": rng.integers(9, 18, n),
+        "day_of_week": rng.integers(0, 5, n),
+        "failed_logins_1h": rng.poisson(0.2, n),
+        "unique_dst_ips_1h": rng.poisson(8, n),
+        "bytes_out_mb_1h": rng.lognormal(2.0, 0.7, n),
+        "new_process_rarity": rng.beta(1.2, 8.0, n),
+        "dns_query_entropy": rng.beta(2.0, 6.0, n),
+        "alert_count_1h": rng.poisson(0.3, n),
+        "uncommon_port_hits_1h": rng.poisson(0.2, n),
+        "persistence_events_1h": rng.poisson(0.05, n),
+        "suspicious_cmdline_hits_1h": rng.poisson(0.1, n),
+        "asset_type": np.array(["workstation"] * n, dtype=object),
+    }
 
 
-def _benign_updates(rng, n):
-    return _mk(rng, n, off_prob=0.70, asset_p=(0.70, 0.28, 0.02),
-               bytes_out_mb_1h=rng.lognormal(4.0, 0.7, n),
-               unique_dst_ips_1h=rng.poisson(4, n),
-               new_process_rarity=rng.beta(2.0, 6.0, n),
-               alert_count_1h=rng.poisson(0.5, n))
+def _benign_linux_server(rng, n):
+    """linux-server: sshd/nginx/cron/apt/systemd, steady 24h low volume.
+
+    Ports 22/80/443 are common => uncommon_port_hits_1h near zero.
+    ~10% of hours carry a cron-driven burst of outbound connections.
+    Failed logins kept modest: an exposed server sees sshd noise, but
+    heavy brute-force-like auth failure rates belong to the attack
+    classes (T1110), not to "normal". asset_type = server.
+    Provenance: "template".
+    """
+    dst = rng.poisson(3, n)
+    burst = rng.random(n) < 0.10
+    dst[burst] = rng.poisson(10, int(burst.sum()))
+    return {
+        "hour_of_day": rng.integers(0, 24, n),
+        "day_of_week": rng.integers(0, 7, n),
+        "failed_logins_1h": rng.poisson(0.5, n),
+        "unique_dst_ips_1h": dst,
+        "bytes_out_mb_1h": rng.lognormal(1.5, 0.7, n),
+        "new_process_rarity": rng.beta(1.0, 9.0, n),
+        "dns_query_entropy": rng.beta(2.0, 6.0, n),
+        "alert_count_1h": rng.poisson(0.2, n),
+        "uncommon_port_hits_1h": rng.poisson(0.3, n),
+        "persistence_events_1h": rng.poisson(0.05, n),
+        "suspicious_cmdline_hits_1h": rng.poisson(0.1, n),
+        "asset_type": np.array(["server"] * n, dtype=object),
+    }
 
 
-def _benign_dev(rng, n):
-    return _mk(rng, n, off_prob=0.20, asset_p=(0.85, 0.13, 0.02),
-               new_process_rarity=rng.beta(3.0, 5.0, n),
-               unique_dst_ips_1h=rng.poisson(8, n),
-               bytes_out_mb_1h=rng.lognormal(2.0, 0.7, n),
-               suspicious_cmdline_hits_1h=rng.poisson(0.5, n))
+def _benign_macos_laptop(rng, n):
+    """macos-laptop: safari/xcode/homebrew/spotify, ports 443/5223.
+
+    Evening-heavy use (hours 8-23, so off_hours=1 after 18 is honest).
+    Provenance: "template".
+    """
+    return {
+        "hour_of_day": rng.integers(8, 24, n),
+        "day_of_week": rng.integers(0, 7, n),
+        "failed_logins_1h": rng.poisson(0.2, n),
+        "unique_dst_ips_1h": rng.poisson(7, n),
+        "bytes_out_mb_1h": rng.lognormal(2.2, 0.7, n),
+        "new_process_rarity": rng.beta(1.5, 7.0, n),
+        "dns_query_entropy": rng.beta(2.0, 6.0, n),
+        "alert_count_1h": rng.poisson(0.3, n),
+        "uncommon_port_hits_1h": rng.poisson(0.5, n),
+        "persistence_events_1h": rng.poisson(0.05, n),
+        "suspicious_cmdline_hits_1h": rng.poisson(0.1, n),
+        "asset_type": np.array(["workstation"] * n, dtype=object),
+    }
+
+
+def _benign_overnight_idle(rng, n):
+    """overnight-idle: near-zero events, hours 1-5, any machine.
+
+    A sleeping/powered-on-but-unused box. Everything near zero. This
+    archetype is what makes 3am bursts ANOMALOUS for the IsolationForest:
+    if a tenant's machine is quiet at night, night activity deviates.
+    Provenance: "template".
+    """
+    return {
+        "hour_of_day": rng.integers(1, 6, n),
+        "day_of_week": rng.integers(0, 7, n),
+        "failed_logins_1h": rng.poisson(0.05, n),
+        "unique_dst_ips_1h": rng.poisson(0.5, n),
+        "bytes_out_mb_1h": rng.lognormal(0.0, 0.5, n),
+        "new_process_rarity": rng.beta(1.0, 10.0, n),
+        "dns_query_entropy": rng.beta(1.5, 8.0, n),
+        "alert_count_1h": rng.poisson(0.1, n),
+        "uncommon_port_hits_1h": rng.poisson(0.1, n),
+        "persistence_events_1h": rng.poisson(0.02, n),
+        "suspicious_cmdline_hits_1h": rng.poisson(0.02, n),
+        "asset_type": np.array(["workstation"] * n, dtype=object),
+    }
+
+
+# (archetype name, generator, provenance)
+BENIGN_ARCHETYPES = [
+    ("windows-dev", _benign_windows_dev, "real-anchored"),
+    ("windows-office", _benign_windows_office, "template"),
+    ("linux-server", _benign_linux_server, "template"),
+    ("macos-laptop", _benign_macos_laptop, "template"),
+    ("overnight-idle", _benign_overnight_idle, "template"),
+]
 
 
 def generate(seed=SEED):
-    """Generate the v2 dataset.
+    """Generate the v3 dataset.
 
     Returns a shuffled DataFrame with the 15 feature columns + label
-    columns (is_attack, tactic, technique_id, severity, provenance).
+    columns (is_attack, tactic, technique_id, severity, provenance,
+    archetype).
     """
     rng = np.random.default_rng(seed)
     frames = []
 
-    def _frame(raw, is_attack, tactic, technique_id, provenance):
+    def _frame(raw, is_attack, tactic, technique_id, provenance,
+               archetype="attack"):
         df = pd.DataFrame(raw)
         df["off_hours"] = (
             (df["hour_of_day"] < 8) | (df["hour_of_day"] >= 18)
@@ -445,19 +548,15 @@ def generate(seed=SEED):
         df["technique_id"] = technique_id
         df["severity"] = SEVERITY_BY_TACTIC[tactic]
         df["provenance"] = provenance
+        df["archetype"] = archetype
         return df[FEATURE_COLUMNS + LABEL_COLUMNS]
 
-    # benign: real-anchored + templates
-    frames.append(_frame(_benign_real(rng, N_BENIGN_REAL),
-                         0, "benign", "benign", "real-anchored"))
-    frames.append(_frame(_benign_browsing(rng, 4000),
-                         0, "benign", "benign", "template"))
-    frames.append(_frame(_benign_updates(rng, 3000),
-                         0, "benign", "benign", "template"))
-    frames.append(_frame(_benign_dev(rng, 3000),
-                         0, "benign", "benign", "template"))
+    # benign: 5 device archetypes x 4k rows
+    for name, gen, prov in BENIGN_ARCHETYPES:
+        frames.append(_frame(gen(rng, N_PER_ARCHETYPE),
+                             0, "benign", "benign", prov, archetype=name))
 
-    # attacks: 24 ATT&CK techniques + 1 unknown 0-day proxy
+    # attacks: 24 ATT&CK techniques + 1 unknown 0-day proxy (unchanged)
     for tid, (tactic, gen) in TECHNIQUES.items():
         n = N_UNKNOWN if tid == "unknown" else N_PER_TECHNIQUE
         frames.append(_frame(gen(rng, n), 1, tactic, tid, "attack-synthetic"))
@@ -471,6 +570,7 @@ if __name__ == "__main__":
     df = generate()
     print("shape:", df.shape)
     print(df["tactic"].value_counts())
+    print(df["archetype"].value_counts())
     print(df["provenance"].value_counts())
     print(df["severity"].value_counts())
     print(df[FEATURE_COLUMNS].describe().round(2).to_string())
