@@ -64,10 +64,10 @@ async def build_ioc_scenarios(db, limit: int = MAX_IOC_SCENARIOS) -> list[dict]:
     URLhaus URL  -> process downloads payload from URL, then executes it
     CISA KEV CVE -> simulated exploitation: vulnerable service spawns shell
     """
-    from app.domain.models import ThreatIntelIoC
-
     scenarios: list[dict] = []
     try:
+        from app.domain.models import ThreatIntelIoC
+
         rows = (
             (await db.execute(
                 select(ThreatIntelIoC)
@@ -183,10 +183,10 @@ async def build_replay_scenarios(db, limit: int = MAX_REPLAY_SCENARIOS) -> list[
     attacks we saw last week?" A replay that evades means detection has
     regressed (rule changed, intel expired, threshold drifted).
     """
-    from app.domain.models import Alert
-
     scenarios: list[dict] = []
     try:
+        from app.domain.models import Alert
+
         alerts = (
             (await db.execute(
                 select(Alert)
