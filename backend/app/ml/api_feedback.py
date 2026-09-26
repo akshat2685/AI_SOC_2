@@ -161,10 +161,13 @@ async def trigger_retrain(
             _RETRAIN_STATE.update(status="error", detail=str(exc)[:300])
 
     threading.Thread(target=_work, daemon=True).start()
-    audit_logger.info("ml_retrain_triggered", extra={
-        "trace_id": None, "user_id": current_user_id(),
-        "tenant_id": current_tenant_id(), "feedback_rows": count,
-    })
+    audit_logger.emit(
+        action="ml_retrain_triggered",
+        tenant_id=current_tenant_id.get(),
+        user_id=current_user_id.get(),
+        trace_id=current_trace_id.get(),
+        details={"feedback_rows": count},
+    )
     return {"status": "started", "feedback_rows": count,
             "detail": "retraining in background; poll /ml/retrain/status"}
 
