@@ -25,7 +25,8 @@ import {
   Sparkles,
   ShieldCheck,
   Rocket,
-  Plug
+  Plug,
+  MonitorSmartphone
 } from 'lucide-react';
 
 interface ShellProps {
@@ -274,6 +275,7 @@ export default function DashboardShell({ children }: ShellProps) {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'onboarding', label: 'Onboarding', icon: Rocket },
     { id: 'integrations', label: 'Integrations', icon: Plug },
+    { id: 'endpoints', label: 'Endpoints', icon: MonitorSmartphone },
     { id: 'incidents', label: 'Incidents & Triage', icon: AlertTriangle },
     { id: 'approvals', label: 'Response Center', icon: ShieldCheck },
     { id: 'graph', label: 'Digital Twin Graph', icon: Network },

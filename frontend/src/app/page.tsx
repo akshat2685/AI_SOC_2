@@ -16,6 +16,7 @@ import ApprovalsView from '@/components/ApprovalsView';
 import SOCCommandCenter from '@/components/SOCCommandCenter';
 import OnboardingWizard from '@/components/OnboardingWizard';
 import IntegrationsView from '@/components/IntegrationsView';
+import EndpointsView from '@/components/EndpointsView';
 import SaaSPaymentWall from '@/components/SaaSPaymentWall';
 
 const AttackGraphView = dynamic(() => import('@/components/AttackGraphView'), {
@@ -47,6 +48,8 @@ export default function Home() {
         return <OnboardingWizard />;
       case 'integrations':
         return <IntegrationsView />;
+      case 'endpoints':
+        return <EndpointsView />;
       case 'incidents':
         return <IncidentsView />;
       case 'approvals':
