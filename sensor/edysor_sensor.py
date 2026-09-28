@@ -1102,11 +1102,15 @@ def _execute_command(cfg: dict, config_path: Path, cmd: dict) -> None:
             pass
 
 
-def poll_commands(cfg: dict, config_path: Path) -> None:
-    """Fetch pending commands for this device and execute them. Never raises."""
+def poll_commands(cfg: dict, config_path: Path) -> int | None:
+    """Fetch pending commands for this device and execute them. Never raises.
+
+    Returns the backend's configured poll_interval_s when the server sends
+    a sane value, else None (caller keeps its current cadence).
+    """
     device_id = cfg.get("device_id")
     if not device_id:
-        return
+        return None
     url = (cfg["backend_url"].rstrip("/")
            + f"/api/v1/agents/{device_id}/commands")
     try:
@@ -1131,6 +1135,14 @@ def poll_commands(cfg: dict, config_path: Path) -> None:
         log.info("received %d command(s)", len(commands))
     for cmd in commands:
         _execute_command(cfg, config_path, cmd)
+    # Adopt the tenant's configured command-poll cadence when sane.
+    try:
+        interval_s = int(data.get("poll_interval_s") or 0)
+    except (TypeError, ValueError):
+        interval_s = 0
+    if 10 <= interval_s <= 600:
+        return interval_s
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -1248,16 +1260,20 @@ def main() -> int:
 
     log.info("sensor starting (interval %ds, spool %s)", interval, spool_path)
     last_cmd_poll = 0.0
+    cmd_poll_seconds = COMMAND_POLL_SECONDS  # adopted from backend when it sends one
     try:
         while True:
             run_cycle(state, cfg, config_path, spool_path)
-            # Command channel: poll for response actions every 30s.
+            # Command channel: poll for response actions on the tenant's
+            # configured cadence (backend sends poll_interval_s).
             # Wrapped so a poll failure never stops collection.
             now_mono = time.monotonic()
-            if now_mono - last_cmd_poll >= COMMAND_POLL_SECONDS:
+            if now_mono - last_cmd_poll >= cmd_poll_seconds:
                 last_cmd_poll = now_mono
                 try:
-                    poll_commands(cfg, config_path)
+                    server_interval = poll_commands(cfg, config_path)
+                    if server_interval:
+                        cmd_poll_seconds = server_interval
                 except Exception:
                     log.exception("command poll crashed (sensor survives)")
             time.sleep(interval)
