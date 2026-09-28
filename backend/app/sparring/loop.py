@@ -48,7 +48,7 @@ async def sparring_loop() -> None:
 
 
 async def _one_pass() -> None:
-    from app.infrastructure.database import AsyncSessionLocal
+    from app.infrastructure.database import service_scope
     from app.sparring import defense as defense_mod
     from app.sparring import intel_driven as intel_mod
     from app.sparring.models_db import TwinScenario
@@ -62,8 +62,9 @@ async def _one_pass() -> None:
         run.evasion_count, run.fp_count,
     )
 
-    # 2. Intel-driven pass needs the DB.
-    async with AsyncSessionLocal() as db:
+    # 2. Intel-driven pass needs the DB. Service scope: the twin's learnings
+    # are global (stored under the first tenant), so this spans tenants.
+    async with service_scope() as db:
         ioc_scenarios = await intel_mod.build_ioc_scenarios(db)
         replay_scenarios = await intel_mod.build_replay_scenarios(db)
         scenarios = ioc_scenarios + replay_scenarios
