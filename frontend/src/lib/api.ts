@@ -335,7 +335,7 @@ export const api = {
     return request(`/mitre/techniques/${encodeURIComponent(id)}`);
   },
 
-  // Audit Log
+  // Audit Log — envelope: { events, chain_valid, chain_error, signing }
   getAuditLog: async (): Promise<any> => {
     return request('/audit-log');
   },
