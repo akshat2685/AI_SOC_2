@@ -310,17 +310,74 @@ async def get_audit_log(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
 ):
-    try:
-        result = await db.execute(
-            select(AuditEvent).order_by(desc(AuditEvent.id)).offset(skip).limit(limit)
+    """Tenant-scoped audit trail with on-read chain verification.
+
+    RLS (tenant role) already scopes every row to the caller's tenant; the
+    explicit tenant_id filter is defense in depth. The tamper-evident hash
+    chain is re-verified over the returned page, anchored on the preceding
+    row's hash (or genesis for the first page).
+    """
+    from app.application.audit_logger import verify_chain, _GENESIS
+
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+
+    rows = (
+        await db.execute(
+            select(AuditEvent)
+            .where(AuditEvent.tenant_id == tenant_id)
+            .order_by(desc(AuditEvent.id))
+            .offset(skip)
+            .limit(limit)
         )
-        events = result.scalars().all()
-        logger.info("audit_log_listed", count=len(events))
-        return events
-    except Exception as e:
-        logger.error("audit_log_failed", error=str(e))
-        return []
+    ).scalars().all()
+
+    events = [
+        {
+            "id": r.id,
+            "tenant_id": r.tenant_id,
+            "user_id": r.user_id,
+            "trace_id": r.trace_id,
+            "action": r.action,
+            "details": r.details,
+            "integrity_hash": r.integrity_hash,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+    chain_valid, chain_error = True, None
+    if rows:
+        ascending = list(reversed(events))
+        if skip == 0:
+            anchor = None  # genesis
+        else:
+            anchor = (
+                await db.execute(
+                    select(AuditEvent.integrity_hash)
+                    .where(AuditEvent.tenant_id == tenant_id, AuditEvent.id < rows[-1].id)
+                    .order_by(desc(AuditEvent.id))
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        if skip != 0 and anchor is None:
+            chain_valid, chain_error = False, "missing chain anchor (possible row deletion)"
+        else:
+            valid, failed_id = verify_chain(ascending, anchor or _GENESIS)
+            chain_valid = valid
+            if not valid:
+                chain_error = f"chain broken at event {failed_id} (possible tampering)"
+
+    logger.info("audit_log_listed", count=len(events), tenant_id=tenant_id, chain_valid=chain_valid)
+    return {
+        "events": events,
+        "chain_valid": chain_valid,
+        "chain_error": chain_error,
+        "signing": "hmac-sha256",
+    }
 
 # ---------------------------------------------------------------------------
 # Approvals
