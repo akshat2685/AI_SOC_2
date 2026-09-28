@@ -495,7 +495,7 @@ export default function IncidentsView() {
             <Shield className="w-4 h-4 text-sky-400" /> Incidents
           </h2>
           <p className="text-[10px] text-slate-400 mt-1">
-            Real-time telemetry monitoring, automated response playbooks, and AI incident triage workbench.
+            Telemetry monitoring, automated response playbooks, and AI incident triage workbench.
           </p>
         </div>
 
