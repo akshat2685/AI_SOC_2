@@ -64,13 +64,31 @@ async def scan_status(
     db: AsyncSession = Depends(get_db),
     _auth=Depends(require_roles_dual(READ_ROLES)),
 ) -> Dict[str, Any]:
-    """Last scan watermark and totals for the current tenant."""
+    """Last scan watermark and totals for the current tenant.
+
+    `stale` is True when the background scan loop has not completed a scan
+    within 2x its configured interval — the loop may be dead even though the
+    API is up. `scan_interval_s` reports the configured cadence so the UI can
+    label it honestly instead of claiming "real-time".
+    """
+    import os
+    from datetime import datetime, timezone
+
     tenant_id = current_tenant_id.get() or 1
     wm = await db.get(DetectionWatermark, tenant_id)
+    last_scan_at = wm.last_scan_at if wm and wm.last_scan_at else None
+    interval_s = int(os.environ.get("DETECTION_SCAN_INTERVAL_S", "300"))
+    stale = True
+    if last_scan_at is not None:
+        now = datetime.now(timezone.utc)
+        ts = last_scan_at if last_scan_at.tzinfo else last_scan_at.replace(tzinfo=timezone.utc)
+        stale = (now - ts).total_seconds() > 2 * interval_s
     return {
         "tenant_id": tenant_id,
-        "last_scan_at": wm.last_scan_at.isoformat() if wm and wm.last_scan_at else None,
+        "last_scan_at": last_scan_at.isoformat() if last_scan_at else None,
         "events_scanned_total": (wm.events_scanned if wm else 0) or 0,
         "alerts_created_total": (wm.alerts_created if wm else 0) or 0,
         "engine": "detection-v1",
+        "scan_interval_s": interval_s,
+        "stale": stale,
     }
