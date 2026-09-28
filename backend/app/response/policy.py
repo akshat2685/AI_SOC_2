@@ -38,6 +38,12 @@ SAFETY RULES (the whole point of this file — read before changing thresholds):
 
 8. NEVER RAISE: every path is wrapped; a policy failure logs and returns,
    it never breaks ingest or detection.
+
+9. TENANT RESPONSE MODE (tenants.response_mode) caps everything above:
+   'dry_run' observes only (audits what it WOULD have done, takes no
+   action); 'approvals_only' routes every actionable alert to a human;
+   only 'auto_contain' permits autonomous commands. New tenants default
+   to dry_run; a missing/unreadable mode fails closed to dry_run.
 """
 
 from __future__ import annotations
@@ -55,12 +61,14 @@ from app.domain.models import (
     ApprovalStatusEnum,
     Playbook,
     PlaybookExecution,
+    Tenant,
 )
 from app.response.models import (
     COMMAND_ACTIONS,
     DESTRUCTIVE_ACTIONS,
     DeviceCommand,
 )
+from app.application.audit_logger import audit_logger
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +77,24 @@ AUTO_SEVERITIES = ("HIGH", "CRITICAL")
 AUTO_MIN_CONFIDENCE = 80
 DESTRUCTIVE_MIN_CONFIDENCE = 95  # + severity must be CRITICAL
 
+# Per-tenant response posture (tenants.response_mode). Unknown/missing values
+# fail closed to dry_run.
+RESPONSE_MODES = ("dry_run", "approvals_only", "auto_contain")
+
 SYSTEM_PLAYBOOK_NAME = "Autonomous response"
+
+
+async def _tenant_response_mode(db: AsyncSession, tenant_id: int) -> str:
+    """Read the tenant's response posture. Fails closed to dry_run: if the
+    Tenant row cannot be read, the engine must not auto-contain."""
+    try:
+        mode = (
+            await db.execute(select(Tenant.response_mode).where(Tenant.id == tenant_id))
+        ).scalar_one_or_none()
+    except Exception:
+        logger.exception("response_mode_lookup_failed", tenant_id=tenant_id)
+        mode = None
+    return mode if mode in RESPONSE_MODES else "dry_run"
 
 
 def _detector(alert: Alert) -> str:
@@ -264,10 +289,33 @@ async def _evaluate(db: AsyncSession, alert: Alert) -> dict:
         and is_rules
     )
 
-    if not auto_eligible:
+    # Safety rule 9: the tenant's response mode caps what the engine may do,
+    # no matter what the gates above say. dry_run observes only (audits what
+    # it WOULD have done); approvals_only routes everything to a human;
+    # only auto_contain permits autonomous commands.
+    mode = await _tenant_response_mode(db, alert.tenant_id)
+
+    if mode == "dry_run":
+        would_have = "auto_commands" if auto_eligible else "approval"
+        audit_logger.emit(
+            "response_dry_run",
+            tenant_id=alert.tenant_id,
+            details={
+                "alert_id": alert.id,
+                "severity": severity,
+                "confidence": confidence,
+                "detector": detector,
+                "would_have": would_have,
+                "actions": actions,
+            },
+        )
+        logger.info("response_dry_run", alert_id=alert.id, would_have=would_have)
+        return {"outcome": "dry_run", "reason": f"tenant response_mode=dry_run (would have: {would_have})"}
+
+    if mode != "auto_contain" or not auto_eligible:
         reason = (
-            f"auto gate not met (severity={severity}, confidence={confidence}, "
-            f"detector={detector or 'unknown'})"
+            f"auto gate not met (mode={mode}, severity={severity}, "
+            f"confidence={confidence}, detector={detector or 'unknown'})"
         )
         return await _request_approval(db, alert, actions, reason)
 
