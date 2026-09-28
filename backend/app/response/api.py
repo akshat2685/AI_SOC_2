@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_roles_dual
 from app.core.auth import current_tenant_id
-from app.domain.models import EndpointAgent, RoleEnum
+from app.domain.models import EndpointAgent, RoleEnum, Tenant
 from app.infrastructure.database import get_db
 from app.response.models import DeviceCommand
 
@@ -99,7 +99,16 @@ async def poll_commands(
     if commands:
         await db.commit()
         logger.info("commands_delivered", device_id=device_id, count=len(commands))
-    return {"device_id": device_id, "commands": [_command_to_dict(c) for c in commands]}
+    # The tenant's configured sensor cadence; the sensor adopts it so the
+    # "real-time" claim is a dial (10-600s), not a hardcoded 30s.
+    poll_interval_s = (
+        await db.execute(select(Tenant.poll_interval_s).where(Tenant.id == tenant_id))
+    ).scalar_one_or_none() or 30
+    return {
+        "device_id": device_id,
+        "commands": [_command_to_dict(c) for c in commands],
+        "poll_interval_s": poll_interval_s,
+    }
 
 
 @router.post("/commands/{cmd_id}/ack")
