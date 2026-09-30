@@ -49,9 +49,11 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
-      BACKUP_DIR: ${{ runner.temp }}/backups
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set backup directory
+        run: echo "BACKUP_DIR=${{ runner.temp }}/backups" >> "$GITHUB_ENV"
 
       - name: Require backup secret
         run: |
