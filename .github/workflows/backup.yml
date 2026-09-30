@@ -1,0 +1,84 @@
+name: Database Backup
+
+# Nightly logical backup of the production Postgres database.
+#
+# Runs backend/scripts/pg_backup.sh against the Render Postgres EXTERNAL
+# connection string, then proves the dump is restorable by running
+# backend/scripts/pg_restore_test.sh into a throwaway Postgres service
+# container in the same job. The dump + manifest are kept as a workflow
+# artifact (90 days). A failed run fails this workflow, which emails the
+# repo owner — silence never means success here.
+#
+# Required secret: BACKUP_DATABASE_URL
+#   Render dashboard -> the aisoc2 Postgres database -> Connections ->
+#   "External Database URL". Paste it under repo Settings -> Secrets and
+#   variables -> Actions. Never commit it or paste it in chat.
+#
+# Note: /api/v1/backup/status on the app reads an on-host manifest
+# (BACKUP_MANIFEST_PATH); backups taken here live in Actions artifacts,
+# so that endpoint keeps reporting the on-host state truthfully.
+
+on:
+  schedule:
+    - cron: "15 3 * * *" # daily 03:15 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: pg_dump + restore test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      scratch-postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: <redacted>
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+      BACKUP_DIR: ${{ runner.temp }}/backups
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require backup secret
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::BACKUP_DATABASE_URL secret is not set. Add the Render Postgres External Database URL under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client >/dev/null
+          pg_dump --version
+
+      - name: Run backup
+        run: bash backend/scripts/pg_backup.sh
+
+      - name: Prove the backup restores
+        run: >-
+          bash backend/scripts/pg_restore_test.sh
+          "$(ls -1t "$BACKUP_DIR"/soc-backup-*.dump.gz | head -1)"
+          "postgresql://postgres:scratch-only@localhost:5432/soc_restore_test"
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: soc-db-backup-${{ github.run_id }}
+          path: ${{ runner.temp }}/backups
+          retention-days: 90
+          if-no-files-found: error

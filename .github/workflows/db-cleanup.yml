@@ -1,0 +1,109 @@
+name: DB Cleanup (one-off, manual)
+
+# Removes QT's disposable test data from the production database:
+#   A) every tenant whose users are ALL disposable test accounts
+#      (qt.% / pentest%) — tenant 1 is always excluded — purged across
+#      every table that carries a tenant_id, then users, then the tenant.
+#   B) the pentest probe user on tenant 1 (pentest-probe-0928@example.com),
+#      nulling its audit/approval references first so the audit chain
+#      itself is never rewritten.
+#
+# Manual only. Type DELETE in the confirm input or the job refuses to run.
+# Uses the same BACKUP_DATABASE_URL secret as the Database Backup
+# workflow. Prints candidate tenants BEFORE deleting and the remaining
+# test-account counts AFTER, all inside one transaction.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type DELETE to run the cleanup'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Purge disposable test tenants
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+    steps:
+      - name: Guard
+        run: |
+          if [ "${{ inputs.confirm }}" != "DELETE" ]; then
+            echo "::error::Confirmation input was not DELETE — refusing to run."
+            exit 1
+          fi
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::BACKUP_DATABASE_URL secret is not set."
+            exit 1
+          fi
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client >/dev/null
+
+      - name: Candidates before cleanup
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT tenant_id, count(*) AS users,
+                 string_agg(email, ', ') AS emails
+          FROM users
+          WHERE tenant_id IS NOT NULL AND tenant_id <> 1
+          GROUP BY tenant_id
+          HAVING bool_and(email LIKE 'qt.%' OR email LIKE 'pentest%')
+          ORDER BY tenant_id;
+          SELECT id, email, tenant_id, role FROM users
+          WHERE email = 'pentest-probe-0928@example.com';
+          SQL
+
+      - name: Run cleanup (single transaction)
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 --single-transaction <<'SQL'
+          DO $$
+          DECLARE
+            t int;
+            tbl text;
+          BEGIN
+            FOR t IN
+              SELECT tenant_id FROM users
+              WHERE tenant_id IS NOT NULL AND tenant_id <> 1
+              GROUP BY tenant_id
+              HAVING bool_and(email LIKE 'qt.%' OR email LIKE 'pentest%')
+            LOOP
+              FOR tbl IN
+                SELECT table_name FROM information_schema.columns
+                WHERE table_schema = 'public' AND column_name = 'tenant_id'
+              LOOP
+                EXECUTE format('DELETE FROM %I WHERE tenant_id = $1', tbl) USING t;
+              END LOOP;
+              DELETE FROM users WHERE tenant_id = t;
+              DELETE FROM tenants WHERE id = t;
+              RAISE NOTICE 'purged tenant %', t;
+            END LOOP;
+          END $$;
+
+          DELETE FROM api_keys
+          WHERE created_by IN (SELECT id FROM users WHERE email = 'pentest-probe-0928@example.com');
+          UPDATE audit_events SET user_id = NULL
+          WHERE user_id IN (SELECT id FROM users WHERE email = 'pentest-probe-0928@example.com');
+          UPDATE approval_requests SET requester_id = NULL
+          WHERE requester_id IN (SELECT id FROM users WHERE email = 'pentest-probe-0928@example.com');
+          UPDATE approval_requests SET approver_id = NULL
+          WHERE approver_id IN (SELECT id FROM users WHERE email = 'pentest-probe-0928@example.com');
+          DELETE FROM users WHERE email = 'pentest-probe-0928@example.com';
+          SQL
+
+      - name: Verify after cleanup
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 'remaining_test_users=' || count(*) FROM users
+          WHERE email LIKE 'qt.%' OR email LIKE 'pentest%';
+          SELECT 'tenants_total=' || count(*) FROM tenants;
+          SELECT 'users_total=' || count(*) FROM users;
+          SQL
