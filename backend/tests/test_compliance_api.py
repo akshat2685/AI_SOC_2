@@ -13,8 +13,11 @@ app.dependency_overrides[get_current_user_dual] = override_get_current_user
 
 @pytest.fixture
 def client():
-    with TestClient(app) as c:
-        yield c
+    # No `with TestClient(app)` here: entering the context runs the app
+    # lifespan, which applies migrations against the real POSTGRES_URL and
+    # fails without a live database. These tests override get_db with mocks,
+    # so startup must not touch a real DB.
+    return TestClient(app, raise_server_exceptions=False)
 
 def test_list_frameworks(client):
     with patch("app.api.v1.compliance.current_tenant_id") as mock_tenant_id:
