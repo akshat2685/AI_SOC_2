@@ -1,7 +1,14 @@
+"""The two audit-chain tests below patch the `tenant_scope` seam in
+`app.infrastructure.database` — the scope `_compute_hash` / `_sink_to_postgres`
+actually enter (function-local import). They used to patch
+`app.infrastructure.audit_consumer.AsyncSessionLocal`, which the refactored
+code no longer calls, so the mock never applied and the tests hit a real DB.
+"""
 import pytest
 import json
 import hashlib
 import hmac
+import contextlib
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import Request
 from sqlalchemy import text
@@ -10,6 +17,21 @@ from app.application.audit_logger import AuditLogger
 from app.infrastructure.audit_consumer import AuditConsumer
 from app.api.middleware.audit_middleware import AuditMiddleware
 from app.core.config import settings
+
+
+def _fake_tenant_scope(mock_session, entered=None):
+    """Return a drop-in `tenant_scope` that yields `mock_session` and records
+    every tenant_id it was entered with (the unit-level RLS contract: the
+    consumer must open the DB under tenant_scope(tenant_id) — the RLS GUCs
+    themselves are set inside tenant_scope and covered by the RLS suite)."""
+
+    @contextlib.asynccontextmanager
+    async def fake_scope(tenant_id=None):
+        if entered is not None:
+            entered.append(tenant_id)
+        yield mock_session
+
+    return fake_scope
 
 @pytest.fixture
 def mock_settings(monkeypatch):
@@ -108,13 +130,11 @@ async def test_audit_middleware_ignores_get_requests(monkeypatch):
 async def test_audit_consumer_compute_hash(mock_settings, monkeypatch):
     """Test the integrity chain HMAC logic."""
     mock_session = AsyncMock()
-    mock_session_local = MagicMock(return_value=mock_session)
-    mock_session.__aenter__.return_value = mock_session
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = "db-hash"
     mock_session.execute.return_value = mock_result
-    
-    monkeypatch.setattr("app.infrastructure.audit_consumer.AsyncSessionLocal", mock_session_local)
+
+    monkeypatch.setattr("app.infrastructure.database.tenant_scope", _fake_tenant_scope(mock_session))
 
     consumer = AuditConsumer()
     tenant_id = 1
@@ -178,11 +198,13 @@ async def test_audit_consumer_postgres_sink_rls_isolation(monkeypatch):
     """Test RLS isolation in AuditConsumer."""
     mock_session = AsyncMock()
     mock_session.add = MagicMock()
-    mock_session_local = MagicMock(return_value=mock_session)
-    mock_session.__aenter__.return_value = mock_session
-    
-    monkeypatch.setattr("app.infrastructure.audit_consumer.AsyncSessionLocal", mock_session_local)
-    
+
+    entered_tenants = []
+    monkeypatch.setattr(
+        "app.infrastructure.database.tenant_scope",
+        _fake_tenant_scope(mock_session, entered_tenants),
+    )
+
     consumer = AuditConsumer()
     event_data = {
         "user_id": 42,
@@ -191,20 +213,13 @@ async def test_audit_consumer_postgres_sink_rls_isolation(monkeypatch):
         "details": {},
         "integrity_hash": "test-hash"
     }
-    
+
     await consumer._sink_to_postgres(tenant_id=1, event_data=event_data)
-    
-    # Ensure RLS statement was executed safely
-    executed_statements = [call.args[0].text for call in mock_session.execute.call_args_list]
-    assert "SELECT set_config('rls.tenant_id', :tid, true);" in executed_statements[0]
-    
-    first_call_args = mock_session.execute.call_args_list[0].args
-    first_call_kwargs = mock_session.execute.call_args_list[0].kwargs
-    if len(first_call_args) > 1:
-        assert first_call_args[1] == {"tid": "1"}
-    elif "params" in first_call_kwargs:
-        assert first_call_kwargs["params"] == {"tid": "1"}
-    
+
+    # RLS isolation contract: the sink must run inside tenant_scope(1), which
+    # is what applies rls.app_role='tenant' + rls.tenant_id to the session.
+    assert entered_tenants == [1]
+
     mock_session.add.assert_called_once()
     added_event = mock_session.add.call_args.args[0]
     assert isinstance(added_event, AuditEvent)

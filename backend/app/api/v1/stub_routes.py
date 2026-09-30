@@ -1,5 +1,6 @@
 import structlog
 import httpx
+import ipaddress
 from collections import defaultdict, deque
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -870,19 +871,42 @@ async def executive_metrics(
 # Firewall
 # ---------------------------------------------------------------------------
 
+def _validate_block_ip(raw: str) -> str:
+    """Pentest MEDIUM-1: a firewall block target must be a real, routable IP.
+
+    Rejects garbage ("999.999.999.999") and non-routable targets (loopback,
+    link-local, multicast, unspecified, reserved) that must never ship to
+    sensors. Private LAN ranges stay allowed (internal segmentation).
+    """
+    text = (raw or "").strip()
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid IP address")
+    if (
+        ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_unspecified
+        or ip.is_reserved
+    ):
+        raise HTTPException(status_code=400, detail="IP is not a routable block target")
+    return str(ip)
+
+
 @router.get("/firewall/blocks")
-async def get_firewall_blocks():
+async def get_firewall_blocks(_auth=Depends(require_roles_dual(READ_ROLES))):
     return []
 
 @router.post("/firewall/block")
-async def block_ip(data: dict):
-    ip = data.get("ip", "")
+async def block_ip(data: dict, _auth=Depends(require_roles_dual(WRITE_ROLES))):
+    ip = _validate_block_ip(str(data.get("ip", "")))
     logger.info("firewall_block_ip", ip=ip)
     return {"status": "success", "ip": ip}
 
 @router.post("/firewall/unblock")
-async def unblock_ip(data: dict):
-    ip = data.get("ip", "")
+async def unblock_ip(data: dict, _auth=Depends(require_roles_dual(WRITE_ROLES))):
+    ip = _validate_block_ip(str(data.get("ip", "")))
     logger.info("firewall_unblock_ip", ip=ip)
     return {"status": "success", "ip": ip}
 

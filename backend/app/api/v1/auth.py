@@ -3,8 +3,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
 import re
+import uuid
 
-from app.infrastructure.database import get_db
+from app.infrastructure.database import get_service_db
 from app.domain.models import User, Tenant, RoleEnum
 from app.core.security import verify_password, get_password_hash, create_access_token
 from app.api.middleware.rate_limit_middleware import limiter
@@ -25,7 +26,7 @@ class RegisterRequest(BaseModel):
 
 @router.post("/login")
 @limiter.limit("5/minute")
-async def login(request: Request, req_body: LoginRequest, db: AsyncSession = Depends(get_db)):
+async def login(request: Request, req_body: LoginRequest, db: AsyncSession = Depends(get_service_db)):
     result = await db.execute(select(User).where(User.email == req_body.username))
     user = result.scalars().first()
     if not user or not verify_password(req_body.password, user.hashed_password):
@@ -50,20 +51,20 @@ async def login(request: Request, req_body: LoginRequest, db: AsyncSession = Dep
 
 @router.post("/register")
 @limiter.limit("3/minute")
-async def register(request: Request, req_body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(request: Request, req_body: RegisterRequest, db: AsyncSession = Depends(get_service_db)):
     if not EMAIL_RE.match((req_body.username or "").strip()):
         raise HTTPException(status_code=400, detail="Please provide a valid email address")
-    tenant_result = await db.execute(select(Tenant).where(Tenant.name == "default"))
-    tenant = tenant_result.scalars().first()
-    if not tenant:
-        tenant = Tenant(name="default")
-        db.add(tenant)
-        await db.commit()
-        await db.refresh(tenant)
 
     user_result = await db.execute(select(User).where(User.email == req_body.username))
     if user_result.scalars().first():
         raise HTTPException(status_code=400, detail="An account with this email already exists")
+
+    # Pentest CRITICAL-1: never attach self-registrations to the shared
+    # "default" tenant. Every signup mints its OWN tenant (response_mode
+    # defaults to dry_run) and is TENANT_ADMIN of that tenant only.
+    tenant = Tenant(name=f"tenant-{uuid.uuid4().hex[:8]}")
+    db.add(tenant)
+    await db.flush()
 
     new_user = User(
         email=req_body.username,
@@ -74,4 +75,4 @@ async def register(request: Request, req_body: RegisterRequest, db: AsyncSession
     db.add(new_user)
     await db.commit()
 
-    return {"status": "success", "username": req_body.username}
+    return {"status": "success", "username": req_body.username, "tenant_id": tenant.id}

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 from app.core.logger import setup_logging, logger
@@ -133,10 +134,33 @@ async def run_db_migrations() -> None:
         logger.error("db_migration_failed", exc_info=True)
         raise
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Baseline hardening headers on every response (pentest LOW)."""
+
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        if not settings.DEBUG:
+            # Docs UI is off in this mode, so a deny-all CSP is safe here.
+            response.headers.setdefault(
+                "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
+            )
+        return response
+
+
 def create_app() -> FastAPI:
+    # Pentest LOW: Swagger UI / OpenAPI schema expose the full API surface to
+    # anonymous users. They stay enabled only in DEBUG (local dev).
     app = FastAPI(
         title=settings.PROJECT_NAME,
-        openapi_url=f"{settings.API_V1_STR}/openapi.json",
+        openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.DEBUG else None,
+        docs_url="/docs" if settings.DEBUG else None,
+        redoc_url="/redoc" if settings.DEBUG else None,
         version=settings.VERSION,
         lifespan=lifespan
     )
@@ -147,6 +171,7 @@ def create_app() -> FastAPI:
     app.add_middleware(TraceMiddleware)
     app.add_middleware(DualAuthMiddleware)
     app.add_middleware(AuditMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # CORS must be the outermost middleware so preflight requests are
     # handled before auth. Origins are env-driven (BACKEND_CORS_ORIGINS,
