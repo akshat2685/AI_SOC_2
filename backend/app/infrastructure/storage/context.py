@@ -1,7 +1,9 @@
 from typing import AsyncGenerator, Optional
 from contextlib import asynccontextmanager
-from sqlalchemy import text
+from contextvars import ContextVar
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session as SyncSession
 from app.core.auth import current_tenant_id, current_user_id
 from app.infrastructure.storage.engine import AsyncSessionLocal
 
@@ -11,6 +13,42 @@ from app.infrastructure.storage.engine import AsyncSessionLocal
 #                seeding, background loops. Never for serving tenant data.
 _ROLE_TENANT = "tenant"
 _ROLE_SERVICE = "service"
+
+# Which RLS role the current execution context wants on every DB transaction.
+# Set by get_db / service_scope / tenant_scope; consumed by the after_begin
+# listener below. The listener re-applies the GUCs per-transaction because a
+# session-level SET does not survive `commit()`: commit returns the physical
+# connection to the pool, and the next statement (e.g. `refresh()` after an
+# insert) may run on a different pooled connection whose GUCs were reset —
+# under RLS default-deny the just-committed row is then invisible and
+# refresh() raises InvalidRequestError (the live POST /api-keys/ 500).
+_current_db_role: ContextVar[Optional[str]] = ContextVar("rls_db_role", default=None)
+
+
+@event.listens_for(SyncSession, "after_begin")
+def _rls_after_begin(session, transaction, connection) -> None:
+    """Re-apply the RLS GUCs (transaction-local) at every transaction begin.
+
+    Fires for sync and async sessions alike (async sessions bridge to the
+    sync Session). No-op on non-Postgres dialects (tests run sqlite) and
+    when no role/tenant is in context (public routes stay default-deny).
+    """
+    if connection.dialect.name != "postgresql":
+        return
+    role = _current_db_role.get()
+    tenant_id = current_tenant_id.get()
+    if role is None and tenant_id is not None:
+        role = _ROLE_TENANT
+    if role is None:
+        return
+    connection.execute(
+        text("SELECT set_config('rls.app_role', :role, true)"), {"role": role}
+    )
+    if tenant_id is not None:
+        connection.execute(
+            text("SELECT set_config('rls.tenant_id', :tid, true)"),
+            {"tid": str(tenant_id)},
+        )
 
 
 def set_tenant_context(tenant_id: Optional[int]) -> None:
@@ -82,6 +120,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         tenant_id = current_tenant_id.get()
         is_pg = _is_pg(session)
+        role_token = None
+        if tenant_id is not None:
+            role_token = _current_db_role.set(_ROLE_TENANT)
         try:
             if tenant_id is not None and is_pg:
                 await _apply_role(session, _ROLE_TENANT, tenant_id)
@@ -96,6 +137,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             # continue working.
             await _clean_session(session, is_pg)
             await session.close()
+            if role_token is not None:
+                _current_db_role.reset(role_token)
 
 
 async def get_service_db() -> AsyncGenerator[AsyncSession, None]:
@@ -115,6 +158,7 @@ async def service_scope() -> AsyncGenerator[AsyncSession, None]:
     """
     async with AsyncSessionLocal() as session:
         is_pg = _is_pg(session)
+        role_token = _current_db_role.set(_ROLE_SERVICE)
         try:
             if is_pg:
                 await _apply_role(session, _ROLE_SERVICE)
@@ -122,6 +166,7 @@ async def service_scope() -> AsyncGenerator[AsyncSession, None]:
         finally:
             await _clean_session(session, is_pg)
             await session.close()
+            _current_db_role.reset(role_token)
 
 
 @asynccontextmanager
@@ -132,8 +177,10 @@ async def tenant_scope(tenant_id: Optional[int] = None) -> AsyncGenerator[AsyncS
     same DB-level isolation as request handlers.
     """
     token = None
+    role_token = None
     if tenant_id is not None:
         token = current_tenant_id.set(tenant_id)
+        role_token = _current_db_role.set(_ROLE_TENANT)
     try:
         async with AsyncSessionLocal() as session:
             is_pg = _is_pg(session)
@@ -146,3 +193,5 @@ async def tenant_scope(tenant_id: Optional[int] = None) -> AsyncGenerator[AsyncS
     finally:
         if token is not None:
             current_tenant_id.reset(token)
+        if role_token is not None:
+            _current_db_role.reset(role_token)
