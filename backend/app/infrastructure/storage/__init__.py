@@ -7,6 +7,8 @@ from app.infrastructure.storage.engine import (
 )
 from app.infrastructure.storage.context import (
     get_db,
+    get_service_db,
+    service_scope,
     tenant_scope,
     set_tenant_context,
     get_tenant_context,
@@ -33,6 +35,8 @@ __all__ = [
     "dispose_engine",
     "DATABASE_URL",
     "get_db",
+    "get_service_db",
+    "service_scope",
     "tenant_scope",
     "set_tenant_context",
     "get_tenant_context",

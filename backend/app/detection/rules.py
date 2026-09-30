@@ -222,3 +222,128 @@ def match_rules(event: dict, known_hashes: set[str] | None = None) -> list[dict]
         if hit:
             findings.append(hit)
     return findings
+
+
+BRUTE_FORCE_FAILED_THRESHOLD = 20  # failed auth attempts per device per scanned set
+
+
+def match_ioc_rules(
+    event: dict,
+    c2_ips: set,
+    c2_domains: set,
+    malicious_ips: set | None = None,
+    malicious_domains: set | None = None,
+) -> list[dict]:
+    """Threat-intel rules: flag connections to known malicious infrastructure.
+
+    c2_ips/c2_domains come from the intel feed (CISA KEV + URLhaus +
+    ThreatFox), cached 10 minutes by app.intel.refresh. A hit on the
+    C2-classified sets fires `known-c2-connection` (T1071, confidence 90);
+    a hit on the broader known-malicious sets fires
+    `known-malicious-connection` (confidence 80, no technique attribution —
+    honest about what the feed actually says).
+    """
+    if event.get("event_type") != "network":
+        return []
+    n = _section(event)
+    dst_ip = str(n.get("dst_ip") or "").strip()
+    dst_host = str(n.get("dst_host") or n.get("host") or "").strip().lower()
+
+    hit_c2_ip = dst_ip in (c2_ips or set()) if dst_ip else False
+    hit_c2_domain = dst_host in (c2_domains or set()) if dst_host else False
+    hit_mal_ip = dst_ip in (malicious_ips or set()) if dst_ip else False
+    hit_mal_domain = dst_host in (malicious_domains or set()) if dst_host else False
+
+    if hit_c2_ip or hit_c2_domain:
+        is_c2, matched = True, dst_ip if hit_c2_ip else dst_host
+    elif hit_mal_ip or hit_mal_domain:
+        is_c2, matched = False, dst_ip if hit_mal_ip else dst_host
+    else:
+        return []
+
+    rule_id = "known-c2-connection" if is_c2 else "known-malicious-connection"
+    return [{
+        "rule_id": rule_id,
+        "rule_name": "Connection to known C2 infrastructure" if is_c2 else "Connection to known-malicious infrastructure",
+        "severity": "HIGH",
+        "confidence": 90 if is_c2 else 80,
+        "title": f"Connection to known malicious infrastructure: {matched}",
+        "description": (
+            f"Device {event.get('device_id', 'unknown')} connected to {matched}, "
+            f"which appears in the threat-intel feed as "
+            f"{'a known C2 IP' if is_c2 and hit_c2_ip else 'a known C2 domain' if is_c2 else 'known-malicious infrastructure'}."
+        ),
+        "fingerprint": _fingerprint(rule_id, event.get("device_id", ""), matched),
+        "evidence": {
+            "dst_ip": dst_ip or None,
+            "dst_host": dst_host or None,
+            "dst_port": n.get("dst_port"),
+            "matched_value": matched,
+            "intel_classified_c2": is_c2,
+            "intel_source": "threat-intel-feed",
+        },
+    }]
+
+
+def match_batch_rules(event_dicts: list[dict]) -> list[dict]:
+    """Aggregate rules over a batch/window of event dicts (not per-event).
+
+    Currently: brute-force-auth — counts failed auth attempts per device and
+    fires HIGH when the count crosses BRUTE_FORCE_FAILED_THRESHOLD. Added
+    because the digital-twin sparring pass proved T1110 brute force (41
+    failed logins/hour) evaded every per-event rule and the anomaly model.
+
+    Findings carry a top-level "device_id"; callers build the synthetic
+    event dict for build_rule_alert as {"id": None, "device_id": ...}.
+    Fingerprints are hourly so a sustained attack re-alerts each hour.
+    """
+    from collections import defaultdict
+
+    failures: dict[str, list[dict]] = defaultdict(list)
+    latest_ts: dict[str, object] = {}
+    for ev in event_dicts:
+        if ev.get("event_type") != "auth":
+            continue
+        a = _section(ev)
+        if a.get("result") not in ("failed", "failure", "denied"):
+            continue
+        device_id = ev.get("device_id") or "unknown"
+        failures[device_id].append(a)
+        ts = ev.get("observed_at")
+        if ts and (device_id not in latest_ts or ts > latest_ts[device_id]):
+            latest_ts[device_id] = ts
+
+    findings = []
+    for device_id, attempts in failures.items():
+        if len(attempts) < BRUTE_FORCE_FAILED_THRESHOLD:
+            continue
+        usernames = sorted({str(a.get("username") or a.get("user") or "?") for a in attempts})
+        src_ips = sorted({str(a.get("src_ip") or "").strip() for a in attempts
+                          if str(a.get("src_ip") or "").strip()})
+        ts = latest_ts.get(device_id)
+        hour_key = ts.strftime("%Y-%m-%dT%H") if hasattr(ts, "strftime") else "unknown"
+        user_list = ", ".join(usernames[:5])
+        if len(usernames) > 5:
+            user_list += f", +{len(usernames) - 5} more"
+        findings.append({
+            "rule_id": "brute-force-auth",
+            "rule_name": "Brute-force authentication attempts",
+            "severity": "HIGH",
+            "confidence": 85,
+            "title": f"Brute-force login attempts on {device_id}",
+            "description": (
+                f"{len(attempts)} failed authentication attempts observed for "
+                f"device {device_id} (usernames: {user_list}"
+                + (f"; sources: {', '.join(src_ips[:5])}" if src_ips else "; source IPs not recorded")
+                + ")"
+            ),
+            "fingerprint": _fingerprint("brute-force-auth", device_id, hour_key),
+            "evidence": {
+                "failed_attempts": len(attempts),
+                "usernames": usernames[:20],
+                "src_ips": src_ips[:20],
+                "hour": hour_key,
+            },
+            "device_id": device_id,
+        })
+    return findings

@@ -54,13 +54,19 @@ class Settings(BaseSettings):
                 "Set it in .env or as a system environment variable. "
                 'Example: export SECRET_KEY="$(openssl rand -hex 32)"'
             )
+        if not self.AUDIT_SECRET_KEY:
+            raise ValueError(
+                "Missing required environment variable: AUDIT_SECRET_KEY. "
+                "The audit log's tamper-evident hash chain is HMAC-signed; "
+                "with an empty key the signatures are forgeable. "
+                'Example: export AUDIT_SECRET_KEY="$(openssl rand -hex 32)"'
+            )
         degraded = {
             "GEMINI_API_KEY": "AI agent features (triage / investigation) are disabled",
             "GOOGLE_API_KEY": "Google API fallback for AI agents is disabled",
             "SOAR_API_KEY": "automated response actions are disabled",
             "SOAR_API_ENDPOINT": "automated response actions are disabled",
             "KAFKA_BOOTSTRAP_SERVERS": "event bus runs in-memory; streaming integrations disabled",
-            "AUDIT_SECRET_KEY": "audit-log signing is disabled",
         }
         for key, consequence in degraded.items():
             if not getattr(self, key, ""):

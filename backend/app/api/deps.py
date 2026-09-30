@@ -49,16 +49,45 @@ async def check_api_key_scopes(security_scopes: SecurityScopes, request: Request
                     )
     return current_user_id.get()
 
+# Sensor API keys live on endpoint machines (sensor.json) and are far less
+# protected than user credentials, so a key may only ever touch the sensor
+# surface (pentest HIGH-1). Everywhere else an API-key-authenticated request
+# is a 403 -- a leaked sensor key must never become tenant-admin API access.
+_API_KEY_SENSOR_ROUTES = {
+    ("POST", "/agents/register"),
+    ("POST", "/agents/{device_id}/heartbeat"),
+    ("POST", "/events/ingest"),
+    ("GET", "/agents/{device_id}/commands"),
+    ("POST", "/agents/commands/{cmd_id}/ack"),
+}
+
+
+def _enforce_api_key_surface(request: Request) -> None:
+    route = request.scope.get("route")
+    path = getattr(route, "path", "") or ""
+    prefix = settings.API_V1_STR
+    if prefix and path.startswith(prefix):
+        path = path[len(prefix):]
+    if (request.method, path) not in _API_KEY_SENSOR_ROUTES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API keys are restricted to sensor endpoints",
+        )
+
+
 async def get_current_user_dual(security_scopes: SecurityScopes, request: Request):
     """
     Dependency that enforces dual auth. It checks if the middleware already authenticated the user.
-    If API Key was used, it enforces scopes.
+    If API Key was used, it enforces scopes and restricts the key to the sensor
+    surface (register / heartbeat / ingest / command poll + ack).
     """
     user_id = current_user_id.get()
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    
+
     await check_api_key_scopes(security_scopes, request)
+    if getattr(request.state, "api_key_scopes", None) is not None:
+        _enforce_api_key_surface(request)
     return user_id
 
 def require_roles(roles: list[RoleEnum]):
@@ -78,8 +107,8 @@ def require_roles_dual(roles: list[RoleEnum]):
 
     - No credentials at all -> 401 (closes the public-access hole).
     - Bearer JWT -> role membership is enforced (GLOBAL_ADMIN bypasses).
-    - API key -> allowed (tenant-scoped secret, already scope-checked by
-      get_current_user_dual); API keys carry no role claim.
+    - API key -> restricted to the sensor surface only (enforced in
+      get_current_user_dual); keys carry no role claim.
     """
     async def dual_role_checker(
         request: Request,

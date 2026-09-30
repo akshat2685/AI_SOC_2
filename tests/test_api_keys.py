@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 import uuid
 import sys
@@ -109,14 +110,29 @@ class TestApiKeyEndpoints:
         assert valid_key.is_active is False
         assert mock_db.commit.called
 
+def _fake_service_scope(session):
+    """Stand-in for the middleware's service_scope(): yields the mock session.
+
+    The middleware resolves API keys via `async with service_scope() as
+    session:` (module-level import in auth_middleware), so tests patch that
+    name. The previous AsyncSessionLocal seam no longer exists.
+    """
+
+    @asynccontextmanager
+    async def _scope():
+        yield session
+
+    return _scope()
+
+
 class TestDualAuthMiddleware:
     @pytest.mark.asyncio
-    @patch("app.api.middleware.auth_middleware.AsyncSessionLocal")
-    async def test_auth_middleware_api_key(self, mock_session_local):
+    @patch("app.api.middleware.auth_middleware.service_scope")
+    async def test_auth_middleware_api_key(self, mock_service_scope):
         # Setup mock db
         mock_session = AsyncMock()
         mock_result = MagicMock()
-        
+
         # Valid active key
         valid_key = ApiKey(
             id=uuid.uuid4(),
@@ -131,7 +147,7 @@ class TestDualAuthMiddleware:
         )
         mock_result.scalars().first.return_value = valid_key
         mock_session.execute.return_value = mock_result
-        mock_session_local.return_value.__aenter__.return_value = mock_session
+        mock_service_scope.side_effect = lambda *a, **k: _fake_service_scope(mock_session)
 
         # Setup mock request
         app = MagicMock()
@@ -152,11 +168,11 @@ class TestDualAuthMiddleware:
         assert response.status_code == 200
 
     @pytest.mark.asyncio
-    @patch("app.api.middleware.auth_middleware.AsyncSessionLocal")
-    async def test_auth_middleware_inactive_key(self, mock_session_local):
+    @patch("app.api.middleware.auth_middleware.service_scope")
+    async def test_auth_middleware_inactive_key(self, mock_service_scope):
         mock_session = AsyncMock()
         mock_result = MagicMock()
-        
+
         inactive_key = ApiKey(
             id=uuid.uuid4(),
             tenant_id=1,
@@ -165,7 +181,7 @@ class TestDualAuthMiddleware:
         )
         mock_result.scalars().first.return_value = inactive_key
         mock_session.execute.return_value = mock_result
-        mock_session_local.return_value.__aenter__.return_value = mock_session
+        mock_service_scope.side_effect = lambda *a, **k: _fake_service_scope(mock_session)
 
         app = MagicMock()
         middleware = DualAuthMiddleware(app)
@@ -183,11 +199,11 @@ class TestDualAuthMiddleware:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    @patch("app.api.middleware.auth_middleware.AsyncSessionLocal")
-    async def test_auth_middleware_expired_key(self, mock_session_local):
+    @patch("app.api.middleware.auth_middleware.service_scope")
+    async def test_auth_middleware_expired_key(self, mock_service_scope):
         mock_session = AsyncMock()
         mock_result = MagicMock()
-        
+
         expired_key = ApiKey(
             id=uuid.uuid4(),
             tenant_id=1,
@@ -197,7 +213,7 @@ class TestDualAuthMiddleware:
         )
         mock_result.scalars().first.return_value = expired_key
         mock_session.execute.return_value = mock_result
-        mock_session_local.return_value.__aenter__.return_value = mock_session
+        mock_service_scope.side_effect = lambda *a, **k: _fake_service_scope(mock_session)
 
         app = MagicMock()
         middleware = DualAuthMiddleware(app)

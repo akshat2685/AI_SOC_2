@@ -1,5 +1,6 @@
 import structlog
 import httpx
+import ipaddress
 from collections import defaultdict, deque
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -310,17 +311,74 @@ async def get_audit_log(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
 ):
-    try:
-        result = await db.execute(
-            select(AuditEvent).order_by(desc(AuditEvent.id)).offset(skip).limit(limit)
+    """Tenant-scoped audit trail with on-read chain verification.
+
+    RLS (tenant role) already scopes every row to the caller's tenant; the
+    explicit tenant_id filter is defense in depth. The tamper-evident hash
+    chain is re-verified over the returned page, anchored on the preceding
+    row's hash (or genesis for the first page).
+    """
+    from app.application.audit_logger import verify_chain, _GENESIS
+
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+
+    rows = (
+        await db.execute(
+            select(AuditEvent)
+            .where(AuditEvent.tenant_id == tenant_id)
+            .order_by(desc(AuditEvent.id))
+            .offset(skip)
+            .limit(limit)
         )
-        events = result.scalars().all()
-        logger.info("audit_log_listed", count=len(events))
-        return events
-    except Exception as e:
-        logger.error("audit_log_failed", error=str(e))
-        return []
+    ).scalars().all()
+
+    events = [
+        {
+            "id": r.id,
+            "tenant_id": r.tenant_id,
+            "user_id": r.user_id,
+            "trace_id": r.trace_id,
+            "action": r.action,
+            "details": r.details,
+            "integrity_hash": r.integrity_hash,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+    chain_valid, chain_error = True, None
+    if rows:
+        ascending = list(reversed(events))
+        if skip == 0:
+            anchor = None  # genesis
+        else:
+            anchor = (
+                await db.execute(
+                    select(AuditEvent.integrity_hash)
+                    .where(AuditEvent.tenant_id == tenant_id, AuditEvent.id < rows[-1].id)
+                    .order_by(desc(AuditEvent.id))
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        if skip != 0 and anchor is None:
+            chain_valid, chain_error = False, "missing chain anchor (possible row deletion)"
+        else:
+            valid, failed_id = verify_chain(ascending, anchor or _GENESIS)
+            chain_valid = valid
+            if not valid:
+                chain_error = f"chain broken at event {failed_id} (possible tampering)"
+
+    logger.info("audit_log_listed", count=len(events), tenant_id=tenant_id, chain_valid=chain_valid)
+    return {
+        "events": events,
+        "chain_valid": chain_valid,
+        "chain_error": chain_error,
+        "signing": "hmac-sha256",
+    }
 
 # ---------------------------------------------------------------------------
 # Approvals
@@ -383,9 +441,43 @@ async def approve_request(
     if ar.status != ApprovalStatusEnum.PENDING:
         raise HTTPException(status_code=409, detail=f"Request already {ar.status.value}")
     ar.status = ApprovalStatusEnum.APPROVED
+    # Approve -> execute bridge: an approved autonomous-response request turns
+    # its proposed actions into DeviceCommands the sensor picks up (~30s poll).
+    created_commands = 0
+    try:
+        from app.response.models import DeviceCommand as _DeviceCommand
+
+        ex_result = await db.execute(
+            select(PlaybookExecution).where(
+                PlaybookExecution.id == ar.execution_id,
+                PlaybookExecution.tenant_id == tenant_id,
+            )
+        )
+        execution = ex_result.scalars().first()
+        if execution:
+            ctx = execution.context_data or {}
+            for action in ctx.get("proposed_actions", []) or []:
+                device_id = str(action.get("device_id") or "").strip()
+                name = str(action.get("action") or "").strip()
+                if not device_id or name not in (
+                    "kill_process", "block_ip", "quarantine_file", "remove_persistence"
+                ):
+                    continue
+                db.add(_DeviceCommand(
+                    tenant_id=tenant_id,
+                    device_id=device_id,
+                    action=name,
+                    params=action.get("params") or {},
+                    status="pending",
+                ))
+                created_commands += 1
+    except Exception:
+        logger.error("approval_execute_bridge_failed", approval_id=approval_id, exc_info=True)
     await db.commit()
-    logger.info("approval_approved", approval_id=approval_id, tenant_id=tenant_id)
-    return {"status": "success", "id": ar.id, "new_status": "APPROVED"}
+    logger.info("approval_approved", approval_id=approval_id, tenant_id=tenant_id,
+                commands_created=created_commands)
+    return {"status": "success", "id": ar.id, "new_status": "APPROVED",
+            "commands_created": created_commands}
 
 
 @router.post("/approvals/{approval_id}/reject")
@@ -779,19 +871,42 @@ async def executive_metrics(
 # Firewall
 # ---------------------------------------------------------------------------
 
+def _validate_block_ip(raw: str) -> str:
+    """Pentest MEDIUM-1: a firewall block target must be a real, routable IP.
+
+    Rejects garbage ("999.999.999.999") and non-routable targets (loopback,
+    link-local, multicast, unspecified, reserved) that must never ship to
+    sensors. Private LAN ranges stay allowed (internal segmentation).
+    """
+    text = (raw or "").strip()
+    try:
+        ip = ipaddress.ip_address(text)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid IP address")
+    if (
+        ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_unspecified
+        or ip.is_reserved
+    ):
+        raise HTTPException(status_code=400, detail="IP is not a routable block target")
+    return str(ip)
+
+
 @router.get("/firewall/blocks")
-async def get_firewall_blocks():
+async def get_firewall_blocks(_auth=Depends(require_roles_dual(READ_ROLES))):
     return []
 
 @router.post("/firewall/block")
-async def block_ip(data: dict):
-    ip = data.get("ip", "")
+async def block_ip(data: dict, _auth=Depends(require_roles_dual(WRITE_ROLES))):
+    ip = _validate_block_ip(str(data.get("ip", "")))
     logger.info("firewall_block_ip", ip=ip)
     return {"status": "success", "ip": ip}
 
 @router.post("/firewall/unblock")
-async def unblock_ip(data: dict):
-    ip = data.get("ip", "")
+async def unblock_ip(data: dict, _auth=Depends(require_roles_dual(WRITE_ROLES))):
+    ip = _validate_block_ip(str(data.get("ip", "")))
     logger.info("firewall_unblock_ip", ip=ip)
     return {"status": "success", "ip": ip}
 

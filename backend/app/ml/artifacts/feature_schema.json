@@ -1,4 +1,5 @@
 {
+  "model_version": "attack-grounded-v3",
   "feature_columns": [
     "hour_of_day",
     "day_of_week",
@@ -9,6 +10,9 @@
     "new_process_rarity",
     "dns_query_entropy",
     "alert_count_1h",
+    "uncommon_port_hits_1h",
+    "persistence_events_1h",
+    "suspicious_cmdline_hits_1h",
     "asset_workstation",
     "asset_server",
     "asset_database"
@@ -22,7 +26,10 @@
     "bytes_out_mb_1h",
     "new_process_rarity",
     "dns_query_entropy",
-    "alert_count_1h"
+    "alert_count_1h",
+    "uncommon_port_hits_1h",
+    "persistence_events_1h",
+    "suspicious_cmdline_hits_1h"
   ],
   "categorical": {
     "src_asset_type": [
@@ -30,23 +37,65 @@
       "server",
       "database"
     ],
-    "one_hot_prefix": "asset_"
+    "one_hot_prefix": "asset_",
+    "one_hot_columns": [
+      "asset_workstation",
+      "asset_server",
+      "asset_database"
+    ]
   },
   "attack_type_classes": [
     "benign",
-    "brute_force",
-    "c2_beacon",
-    "exfiltration",
-    "lateral_movement",
-    "phishing",
-    "ransomware",
-    "unknown_anomaly"
+    "attack"
   ],
+  "triage_target": "is_attack (binary)",
   "severity_classes": [
-    "critical",
-    "high",
-    "low",
-    "medium"
+    "CRITICAL",
+    "HIGH",
+    "LOW",
+    "MEDIUM"
   ],
-  "note": "Feature order and encodings for inference. Rebuild the feature vector in feature_columns order before calling predict(). Trained on synthetic data only."
+  "tactic_classes": [
+    "benign",
+    "command-and-control",
+    "credential-access",
+    "defense-evasion",
+    "discovery",
+    "execution",
+    "exfiltration",
+    "impact",
+    "lateral-movement",
+    "persistence",
+    "privilege-escalation",
+    "unknown"
+  ],
+  "technique_classes": [
+    "T1003.001",
+    "T1008",
+    "T1018",
+    "T1021.001",
+    "T1027",
+    "T1041",
+    "T1048",
+    "T1053.005",
+    "T1055",
+    "T1057",
+    "T1059.001",
+    "T1059.003",
+    "T1070.004",
+    "T1071.001",
+    "T1083",
+    "T1105",
+    "T1110",
+    "T1134",
+    "T1486",
+    "T1490",
+    "T1547.001",
+    "T1555",
+    "T1562.001",
+    "T1570",
+    "benign",
+    "unknown"
+  ],
+  "note": "Feature order and encodings for inference. Rebuild the feature vector in feature_columns order before calling predict(). Trained on ATT&CK-grounded synthetic data v3: 24 technique footprints + 1 unknown proxy; benign spread across 5 device archetypes (windows-dev, windows-office, linux-server, macos-laptop, overnight-idle) so the model generalizes across tenants' machines. Column order is identical to v2 -- the live engine needs no changes."
 }

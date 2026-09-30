@@ -58,7 +58,9 @@ class AuditConsumer:
 
     async def _compute_hash(self, tenant_id: int, event_data: dict) -> str:
         if tenant_id not in self.tenant_hashes:
-            async with AsyncSessionLocal() as session:
+            from app.infrastructure.database import tenant_scope
+
+            async with tenant_scope(tenant_id) as session:
                 stmt = (
                     select(AuditEvent.integrity_hash)
                     .where(AuditEvent.tenant_id == tenant_id)
@@ -127,11 +129,12 @@ class AuditConsumer:
     # ------------------------------------------------------------------
 
     async def _sink_to_postgres(self, tenant_id: int, event_data: dict):
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                text("SELECT set_config('rls.tenant_id', :tid, true);"),
-                {"tid": str(tenant_id)},
-            )
+        # NOTE: kept consistent with the RLS model (tenant role + id), but
+        # this consumer is not started anywhere — the direct sink in
+        # application/audit_logger.py is the live write path.
+        from app.infrastructure.database import tenant_scope
+
+        async with tenant_scope(tenant_id) as session:
             new_event = AuditEvent(
                 tenant_id=tenant_id,
                 user_id=event_data.get("user_id"),

@@ -17,9 +17,9 @@ import numpy as np
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _ART = os.path.join(_DIR, "artifacts")
 
-MODEL_VERSION = "synthetic-v1"
-TRAINED_ON = "synthetic-soc-telemetry-v1"
-WARNING = "Models trained on synthetic telemetry v1 — retrain on real tenant data before production use."
+MODEL_VERSION = "attack-grounded-v3"
+TRAINED_ON = "attack-grounded-synthetic-v3 (24 ATT&CK techniques + 5 device archetypes, seed 42)"
+WARNING = "Models trained on ATT&CK-grounded synthetic telemetry v3 — retrain on real labeled tenant data before production use."
 ZERO_DAY_NOTE = (
     "The anomaly detector is the 0-day signal: it was fit on benign-only traffic and flags "
     "behavioral deviations, not signatures. The classifier only recognizes attack patterns "
@@ -50,6 +50,24 @@ def models_available() -> bool:
         os.path.exists(os.path.join(_ART, n))
         for n in ("triage_clf.pkl", "severity_clf.pkl", "anomaly_iforest.pkl")
     )
+
+
+def reload_models() -> dict:
+    """Drop the inference caches so freshly retrained artifacts load.
+
+    Called after a gated retrain succeeds. Also re-reads the schema so
+    MODEL_VERSION reflects the new version.
+    """
+    global _schema_cache, MODEL_VERSION
+    _cache.clear()
+    _schema_cache = None
+    try:
+        schema = _schema()
+        version = schema.get("model_version", MODEL_VERSION)
+    except Exception:
+        version = MODEL_VERSION
+    MODEL_VERSION = version
+    return {"reloaded": True, "model_version": version}
 
 
 def build_vector(features: dict) -> np.ndarray:

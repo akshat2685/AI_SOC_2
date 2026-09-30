@@ -3,6 +3,8 @@ from app.infrastructure.storage import (
     engine,
     AsyncSessionLocal,
     get_db,
+    get_service_db,
+    service_scope,
     tenant_scope,
     dispose_engine,
 )
@@ -12,6 +14,8 @@ __all__ = [
     "engine",
     "AsyncSessionLocal",
     "get_db",
+    "get_service_db",
+    "service_scope",
     "tenant_scope",
     "dispose_engine",
 ]

@@ -163,7 +163,7 @@ export default function SaaSPaymentWall({ onSuccess, inline = false }: SaaSPayme
             Unlock Advanced SOC Capabilities
           </h2>
           <p className="text-slate-400 text-sm">
-            Upgrade your plan to activate real-time cyber digital twins, attack tree propagators, federated indicators correlation, and executive risk telemetry reporting.
+            Upgrade your plan to activate simulated cyber digital twins for attack rehearsal, MITRE ATT&CK technique coverage, and executive risk telemetry reporting.
           </p>
         </div>
       )}

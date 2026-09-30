@@ -1,0 +1,36 @@
+{
+ "n": 961,
+ "event_types": {
+  "network": 907,
+  "process": 50,
+  "auth": 4
+ },
+ "top_processes": {
+  "chrome.exe": 11,
+  "brave.exe": 10,
+  "msedgewebview2.exe": 6,
+  "updater.exe": 4,
+  "node.exe": 4,
+  "runtimebroker.exe": 3,
+  "powershell.exe": 2,
+  "backgroundtaskhost.exe": 2,
+  "svchost.exe": 2,
+  "sppsvc.exe": 2,
+  "cmd.exe": 1,
+  "searchprotocolhost.exe": 1,
+  "softlandingtask.exe": 1,
+  "audiodg.exe": 1
+ },
+ "top_ports": {
+  "8081": 755,
+  "443": 135,
+  "3128": 12,
+  "5228": 3,
+  "5222": 2
+ },
+ "hours": {
+  "11": 1898,
+  "10": 24
+ },
+ "provenance": "real telemetry, device agt-11577e30bab3, assumed-benign (no labels)"
+}

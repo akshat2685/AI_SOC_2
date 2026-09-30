@@ -79,7 +79,10 @@ class TestMultiTenantRLSAndContext:
                 assert session == mock_session
                 assert mock_session.execute.called
                 exec_arg = str(mock_session.execute.call_args[0][0])
-                assert "SET LOCAL rls.tenant_id = '42'" in exec_arg
+                # context.py uses parameter-safe set_config() (plain SET does
+                # not accept bind parameters in Postgres).
+                assert "set_config('rls.tenant_id'" in exec_arg
+                assert mock_session.execute.call_args[0][1] == {"tid": "42"}
             
             # Context must reset after exiting block
             assert get_tenant_context() is None
@@ -102,7 +105,10 @@ class TestMultiTenantRLSAndContext:
             assert session == mock_session
             assert mock_session.execute.called
             exec_arg = str(mock_session.execute.call_args[0][0])
-            assert "SET LOCAL rls.tenant_id = '99'" in exec_arg
+            # context.py uses parameter-safe set_config() (plain SET does
+            # not accept bind parameters in Postgres).
+            assert "set_config('rls.tenant_id'" in exec_arg
+            assert mock_session.execute.call_args[0][1] == {"tid": "99"}
             
             # Clean up generator
             try:

@@ -61,6 +61,13 @@ class Tenant(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Autonomous-response posture: 'dry_run' (observe, never contain),
+    # 'approvals_only' (proposals go to the approval queue), 'auto_contain'
+    # (rules-based HIGH/CRITICAL + conf>=80 may auto-contain). New tenants
+    # default to dry_run; see migration 0012.
+    response_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="dry_run")
+    # Sensor command-poll cadence for this tenant's fleet (seconds).
+    poll_interval_s: Mapped[int] = mapped_column(Integer(), nullable=False, default=30)
 
     users: Mapped[List["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     incidents: Mapped[List["Incident"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
@@ -520,3 +527,50 @@ class SecurityEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     tenant: Mapped[Tenant] = relationship(back_populates="security_events")
+
+
+class TrainingFeedback(Base):
+    """Labeled rows for the self-learning retrain loop.
+
+    Written by three sources:
+      - "analyst-verdict": an analyst resolved an incident as true/false
+        positive (see app/ml/feedback.py record_incident_feedback).
+      - "sparring":       the digital-twin sparring simulator's attack runs.
+      - "intel":          rows derived from a daily threat-intel feed.
+
+    The standalone retrain script (app/ml/retrain_with_feedback.py) appends
+    these rows to the base synthetic dataset and retrains under a regression
+    gate. feature_vector always holds the 15 FEATURE_COLUMNS values in order.
+    """
+    __tablename__ = "training_feedback"
+    __table_args__ = (
+        Index("ix_training_feedback_source_created", "source", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True)
+    incident_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("incidents.id"), nullable=True, index=True)
+    device_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    feature_vector: Mapped[dict] = mapped_column(JSON, default=dict)
+    label: Mapped[str] = mapped_column(String(10))  # "attack" | "benign"
+    technique_id: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    tactic: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    severity: Mapped[str] = mapped_column(String(20), default="MEDIUM")
+    source: Mapped[str] = mapped_column(String(30), index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+
+    tenant: Mapped[Tenant] = relationship()
+
+
+# Threat-intel IoC model lives in app.intel.models (global table, not
+# tenant-scoped). Re-exported lazily via PEP 562: an eager import here would
+# be circular, because app.intel.models itself needs Base from this module.
+# The lazy form is safe no matter which side is imported first.
+def __getattr__(name: str):  # noqa: D105
+    if name == "ThreatIntelIoC":
+        from app.intel.models import ThreatIntelIoC
+
+        return ThreatIntelIoC
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

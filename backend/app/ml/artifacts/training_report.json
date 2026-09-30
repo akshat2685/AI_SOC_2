@@ -1,45 +1,166 @@
 {
-  "trained_on": "synthetic-soc-telemetry-v1",
-  "warning": "retrain on real tenant data before production use",
-  "n_samples": 20000,
-  "n_train": 16000,
-  "n_test": 4000,
+  "model_version": "attack-grounded-v3",
+  "trained_on": "attack-grounded-synthetic-v3 (threat_data.py, seed 42)",
+  "warning": "retrain on real labeled tenant data before production use",
+  "n_samples": 40000,
+  "n_train": 32000,
+  "n_test": 8000,
   "seed": 42,
+  "rows_by_tactic": {
+    "benign": 20000,
+    "command-and-control": 2250,
+    "credential-access": 2250,
+    "discovery": 2250,
+    "defense-evasion": 2250,
+    "unknown": 2000,
+    "impact": 1500,
+    "persistence": 1500,
+    "exfiltration": 1500,
+    "execution": 1500,
+    "lateral-movement": 1500,
+    "privilege-escalation": 1500
+  },
+  "rows_by_archetype": {
+    "attack": 20000,
+    "overnight-idle": 4000,
+    "windows-office": 4000,
+    "macos-laptop": 4000,
+    "linux-server": 4000,
+    "windows-dev": 4000
+  },
+  "rows_by_provenance": {
+    "attack-synthetic": 20000,
+    "template": 16000,
+    "real-anchored": 4000
+  },
+  "rows_by_severity": {
+    "LOW": 20000,
+    "HIGH": 12750,
+    "MEDIUM": 5750,
+    "CRITICAL": 1500
+  },
   "models": {
     "triage_clf": {
       "type": "RandomForestClassifier",
       "params": {
-        "n_estimators": 150,
+        "n_estimators": 100,
+        "max_depth": 15,
+        "min_samples_leaf": 5,
         "random_state": 42,
-        "class_weight": "balanced"
+        "class_weight": "balanced",
+        "n_jobs": -1
       },
-      "target": "attack_type",
-      "accuracy": 0.995,
-      "macro_precision": 0.9582,
-      "macro_recall": 0.946,
-      "macro_f1": 0.9495,
-      "per_class_recall": {
-        "benign": 0.9981,
-        "brute_force": 1.0,
-        "c2_beacon": 0.9,
-        "exfiltration": 1.0,
-        "lateral_movement": 1.0,
-        "phishing": 0.92,
-        "ransomware": 0.75,
-        "unknown_anomaly": 1.0
-      }
+      "target": "is_attack (binary)",
+      "classes": [
+        "benign",
+        "attack"
+      ],
+      "accuracy": 0.9831,
+      "macro_precision": 0.9831,
+      "macro_recall": 0.9831,
+      "macro_f1": 0.9831,
+      "per_class": {
+        "benign": {
+          "precision": 0.983,
+          "recall": 0.9832,
+          "f1": 0.9831
+        },
+        "attack": {
+          "precision": 0.9832,
+          "recall": 0.983,
+          "f1": 0.9831
+        }
+      },
+      "confusion_matrix": [
+        [
+          3933,
+          67
+        ],
+        [
+          68,
+          3932
+        ]
+      ],
+      "confusion_matrix_labels": [
+        "benign",
+        "attack"
+      ]
     },
     "severity_clf": {
       "type": "RandomForestClassifier",
       "params": {
-        "n_estimators": 60,
-        "max_depth": 14,
+        "n_estimators": 80,
+        "max_depth": 15,
+        "min_samples_leaf": 5,
         "random_state": 42,
-        "class_weight": "balanced"
+        "class_weight": "balanced",
+        "n_jobs": -1
       },
       "target": "severity",
-      "accuracy": 0.705,
-      "macro_f1": 0.4262
+      "classes": [
+        "CRITICAL",
+        "HIGH",
+        "LOW",
+        "MEDIUM"
+      ],
+      "accuracy": 0.893,
+      "macro_precision": 0.7873,
+      "macro_recall": 0.8563,
+      "macro_f1": 0.8116,
+      "per_class": {
+        "CRITICAL": {
+          "precision": 0.5195,
+          "recall": 0.8396,
+          "f1": 0.6418
+        },
+        "HIGH": {
+          "precision": 0.8996,
+          "recall": 0.8104,
+          "f1": 0.8527
+        },
+        "LOW": {
+          "precision": 0.9822,
+          "recall": 0.9768,
+          "f1": 0.9794
+        },
+        "MEDIUM": {
+          "precision": 0.7482,
+          "recall": 0.7983,
+          "f1": 0.7724
+        }
+      },
+      "confusion_matrix": [
+        [
+          267,
+          40,
+          0,
+          11
+        ],
+        [
+          205,
+          2052,
+          35,
+          240
+        ],
+        [
+          0,
+          35,
+          3907,
+          58
+        ],
+        [
+          42,
+          154,
+          36,
+          918
+        ]
+      ],
+      "confusion_matrix_labels": [
+        "CRITICAL",
+        "HIGH",
+        "LOW",
+        "MEDIUM"
+      ]
     },
     "anomaly_iforest": {
       "type": "IsolationForest",
@@ -48,13 +169,19 @@
         "random_state": 42
       },
       "trained_on": "benign-only training rows (0-day story: learns normal, flags deviations)",
-      "n_benign_train_rows": 14880,
-      "detection_rate_unknown_anomaly_holdout": 0.925,
-      "false_positive_rate_benign_holdout": 0.061,
-      "n_unknown_holdout_rows": 40,
-      "n_benign_holdout_rows": 3720
+      "n_benign_train_rows": 16000,
+      "detection_rate_unknown_holdout": 0.9812,
+      "false_positive_rate_benign_holdout": 0.0442,
+      "n_unknown_holdout_rows": 373,
+      "n_benign_holdout_rows": 4000
     }
   },
-  "elapsed_seconds": 8.5,
-  "note_slim": "severity_clf retrained light (60 trees, depth 14) for deploy size; still synthetic"
+  "limitations": [
+    "Training data is synthetic and ATT&CK-grounded, not real attack traffic. Metrics measure separability of the constructed distribution, NOT expected real-world detection performance.",
+    "Benign class spans 5 device archetypes but is still synthetic except the windows-dev archetype (one machine's 961 UNLABELED events, assumed benign; some 'real-anchored' rows may unknowingly describe malicious activity). Real tenant machines will deviate from all 5 archetypes.",
+    "25 attack classes (24 named techniques + 1 unknown proxy) cover a small subset of the full MITRE ATT&CK matrix (200+ techniques).",
+    "Technique feature footprints are hand-designed approximations, not measured from real intrusions; jitter does not equal adversary variation.",
+    "Retrain on real labeled tenant data before any production use."
+  ],
+  "elapsed_seconds": 11.5
 }

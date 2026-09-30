@@ -181,6 +181,16 @@ async def ingest_events(
         db.add_all(accepted)
     now = datetime.now(timezone.utc)
     agent.last_seen_at = now
+    await db.flush()
+    # Real-time detection: score the batch the moment it lands (rules only,
+    # <100ms). HIGH/CRITICAL hits become alerts immediately and trigger the
+    # autonomous response policy — no waiting for the 5-min scan loop.
+    try:
+        from app.detection.realtime import score_ingested_batch as _rt_score
+
+        await _rt_score(db, tenant_id, device_id, accepted)
+    except Exception:
+        logger.error("realtime_scoring_failed", device_id=device_id, exc_info=True)
     await db.commit()
 
     logger.info(

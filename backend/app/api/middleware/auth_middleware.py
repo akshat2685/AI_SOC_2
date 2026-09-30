@@ -5,7 +5,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from jose import jwt, JWTError
 from sqlalchemy import select, text
 from app.core.config import settings
-from app.infrastructure.database import AsyncSessionLocal
+from app.infrastructure.database import service_scope
 from app.domain.models import ApiKey
 from app.core.auth import current_tenant_id, current_user_id, current_api_key
 from app.core.logger import logger
@@ -36,7 +36,9 @@ class DualAuthMiddleware(BaseHTTPMiddleware):
         is_api_key_auth = False
         if not user_id and api_key_header:
             key_hash = hashlib.sha256(api_key_header.encode()).hexdigest()
-            async with AsyncSessionLocal() as session:
+            # Service scope: the key -> tenant lookup runs BEFORE a tenant is
+            # known, so RLS default-deny would hide the api_keys row.
+            async with service_scope() as session:
                 result = await session.execute(select(ApiKey).where(ApiKey.key_hash == key_hash))
                 api_key = result.scalars().first()
                 

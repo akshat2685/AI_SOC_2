@@ -72,7 +72,7 @@ export default function ChaosDashboard() {
             Chaos Engineering & Resilience Lab
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time monitoring of automated failure injections (Simian Army).
+            Monitoring of automated failure injections.
           </p>
         </div>
         <button 

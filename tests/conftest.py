@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 
 from backend.app.main import app
 from backend.app.domain.models import Base, Alert, Incident, SeverityEnum, StatusEnum
-from backend.app.infrastructure.database import get_db
+from backend.app.infrastructure.database import get_db, get_service_db
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -63,6 +63,9 @@ async def async_client(test_db_session: AsyncSession) -> AsyncGenerator[AsyncCli
         yield test_db_session
 
     app.dependency_overrides[get_db] = _get_test_db
+    # Auth routes (login/register) depend on get_service_db, not get_db;
+    # without this override they hit the real DATABASE_URL engine.
+    app.dependency_overrides[get_service_db] = _get_test_db
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://testserver") as client:
         yield client
