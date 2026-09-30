@@ -442,6 +442,31 @@ class Integration(Base):
     tenant: Mapped[Tenant] = relationship(back_populates="integrations")
 
 
+class FirewallBlock(Base):
+    """A tenant-scoped IP block recorded by POST /firewall/block.
+
+    This is the SOC's authoritative blocklist state: blocks persist, are
+    listed by GET /firewall/blocks, and are removed by /firewall/unblock.
+    Enforcement on the tenant's actual network edge happens through the
+    tenant's firewall integration; this table is the record the SOC UI
+    and the response engine read, so a "blocked" response is only ever
+    returned after the row exists.
+    """
+
+    __tablename__ = "firewall_blocks"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[int] = mapped_column(ForeignKey("tenants.id"), index=True, nullable=False)
+    ip: Mapped[str] = mapped_column(String(45), index=True, nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_by: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant: Mapped[Tenant] = relationship()
+
+
 class EndpointAgent(Base):
     """An enrolled EDYSOR endpoint agent (Windows/macOS/Linux).
 

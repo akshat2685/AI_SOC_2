@@ -12,7 +12,7 @@ from app.api.deps import require_roles_dual
 from app.domain.models import (
     Asset, Alert, Incident, AuditEvent, ApprovalRequest, PlaybookExecution,
     Playbook, RoleEnum, ApprovalStatusEnum, StatusEnum, SeverityEnum,
-    CriticalityEnum,
+    CriticalityEnum, FirewallBlock, Integration, IntegrationStatus,
 )
 
 router = APIRouter()
@@ -28,17 +28,41 @@ ADMIN_ROLES = [RoleEnum.TENANT_ADMIN]
 # ---------------------------------------------------------------------------
 
 @router.get("/stats")
-async def get_stats(db: AsyncSession = Depends(get_db)):
+async def get_stats(
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    """Tenant-scoped SOC counts. Previously unauthenticated and global:
+    any anonymous caller could read platform-wide incident/alert totals."""
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        return {
+            "active_incidents": 0,
+            "open_alerts": 0,
+            "threats_blocked": 0,
+            "system_health": "healthy",
+        }
     try:
-        inc_count = (await db.execute(select(func.count(Incident.id)))).scalar() or 0
-        alert_count = (await db.execute(select(func.count(Alert.id)))).scalar() or 0
+        inc_count = (await db.execute(
+            select(func.count(Incident.id)).where(Incident.tenant_id == tenant_id)
+        )).scalar() or 0
+        alert_count = (await db.execute(
+            select(func.count(Alert.id)).where(Alert.tenant_id == tenant_id)
+        )).scalar() or 0
+        blocked_count = (await db.execute(
+            select(func.count(FirewallBlock.id)).where(
+                FirewallBlock.tenant_id == tenant_id,
+                FirewallBlock.active.is_(True),
+            )
+        )).scalar() or 0
     except Exception:
         inc_count = 0
         alert_count = 0
+        blocked_count = 0
     return {
         "active_incidents": inc_count,
         "open_alerts": alert_count,
-        "threats_blocked": 0,
+        "threats_blocked": blocked_count,
         "system_health": "healthy",
     }
 
@@ -894,55 +918,247 @@ def _validate_block_ip(raw: str) -> str:
     return str(ip)
 
 
+def _block_dict(row: FirewallBlock) -> dict:
+    return {
+        "id": str(row.id),
+        "ip": row.ip,
+        "reason": row.reason,
+        "active": row.active,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
 @router.get("/firewall/blocks")
-async def get_firewall_blocks(_auth=Depends(require_roles_dual(READ_ROLES))):
-    return []
+async def get_firewall_blocks(
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    """The tenant's active blocklist — real persisted state (migration 0013)."""
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        return []
+    rows = (await db.execute(
+        select(FirewallBlock)
+        .where(FirewallBlock.tenant_id == tenant_id, FirewallBlock.active.is_(True))
+        .order_by(desc(FirewallBlock.created_at))
+    )).scalars().all()
+    return [_block_dict(r) for r in rows]
 
 @router.post("/firewall/block")
-async def block_ip(data: dict, _auth=Depends(require_roles_dual(WRITE_ROLES))):
+async def block_ip(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(WRITE_ROLES)),
+):
     ip = _validate_block_ip(str(data.get("ip", "")))
-    logger.info("firewall_block_ip", ip=ip)
-    return {"status": "success", "ip": ip}
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    existing = (await db.execute(
+        select(FirewallBlock).where(
+            FirewallBlock.tenant_id == tenant_id,
+            FirewallBlock.ip == ip,
+            FirewallBlock.active.is_(True),
+        )
+    )).scalars().first()
+    if existing is not None:
+        return {"status": "success", "ip": ip, "already_blocked": True, "block": _block_dict(existing)}
+    row = FirewallBlock(
+        tenant_id=tenant_id,
+        ip=ip,
+        reason=str(data.get("reason", ""))[:255] or None,
+    )
+    db.add(row)
+    await db.commit()
+    await db.refresh(row)
+    logger.info("firewall_block_ip", ip=ip, tenant_id=tenant_id)
+    return {"status": "success", "ip": ip, "blocked": True, "block": _block_dict(row)}
 
 @router.post("/firewall/unblock")
-async def unblock_ip(data: dict, _auth=Depends(require_roles_dual(WRITE_ROLES))):
+async def unblock_ip(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(WRITE_ROLES)),
+):
     ip = _validate_block_ip(str(data.get("ip", "")))
-    logger.info("firewall_unblock_ip", ip=ip)
-    return {"status": "success", "ip": ip}
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    row = (await db.execute(
+        select(FirewallBlock).where(
+            FirewallBlock.tenant_id == tenant_id,
+            FirewallBlock.ip == ip,
+            FirewallBlock.active.is_(True),
+        )
+    )).scalars().first()
+    if row is None:
+        return {"status": "success", "ip": ip, "was_blocked": False}
+    row.active = False
+    await db.commit()
+    logger.info("firewall_unblock_ip", ip=ip, tenant_id=tenant_id)
+    return {"status": "success", "ip": ip, "unblocked": True}
 
 # ---------------------------------------------------------------------------
 # Threat Intelligence
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Threat Intelligence — backed by the threat_intel_iocs feed table.
+# Lookups answer from real ingested IoCs; sync runs the real feed refresh.
+# ---------------------------------------------------------------------------
+
+def _ioc_dict(row) -> dict:
+    return {
+        "source": row.source,
+        "ioc_type": row.ioc_type,
+        "value": row.value,
+        "threat_type": row.threat_type,
+        "malware_family": row.malware_family,
+        "first_seen": row.first_seen.isoformat() if row.first_seen else None,
+        "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+    }
+
+
+async def _lookup_iocs(db: AsyncSession, ioc_type: str, value: str) -> list[dict]:
+    from app.intel.models import ThreatIntelIoC
+
+    rows = (await db.execute(
+        select(ThreatIntelIoC)
+        .where(
+            ThreatIntelIoC.ioc_type == ioc_type,
+            func.lower(ThreatIntelIoC.value) == value.lower(),
+        )
+        .order_by(desc(ThreatIntelIoC.last_seen))
+        .limit(20)
+    )).scalars().all()
+    return [_ioc_dict(r) for r in rows]
+
+
 @router.get("/threat-intel/cve/{cve}")
-async def cve_intel(cve: str):
-    logger.info("threat_intel_cve_lookup", cve=cve)
-    return {"cve": cve, "intel": "No data"}
+async def cve_intel(
+    cve: str,
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    matches = await _lookup_iocs(db, "cve", cve.strip().upper())
+    return {
+        "cve": cve,
+        "found": len(matches) > 0,
+        "matches": matches,
+        "intel": matches[0] if matches else "No data",
+    }
 
 @router.get("/threat-intel/ip/{ip}")
-async def ip_intel(ip: str):
-    logger.info("threat_intel_ip_lookup", ip=ip)
-    return {"ip": ip, "intel": "No data"}
+async def ip_intel(
+    ip: str,
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    matches = await _lookup_iocs(db, "ip", ip.strip())
+    return {
+        "ip": ip,
+        "found": len(matches) > 0,
+        "matches": matches,
+        "intel": matches[0] if matches else "No data",
+    }
 
 @router.post("/threat-intel/sync")
-async def sync_ti():
-    logger.info("threat_intel_sync")
-    return {"status": "success"}
+async def sync_ti(
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(ADMIN_ROLES)),
+):
+    """Run the real feed refresh (CISA KEV + ThreatFox + URLhaus)."""
+    from app.intel.refresh import refresh_all
+
+    result = await refresh_all(db)
+    logger.info("threat_intel_sync", result=result)
+    return {"status": "success", **result}
 
 @router.post("/threat-intel/kev/sync")
-async def sync_kev():
-    logger.info("kev_sync")
-    return {"status": "success"}
+async def sync_kev(
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(ADMIN_ROLES)),
+):
+    """Run the real CISA KEV feed refresh."""
+    from app.intel.refresh import refresh_source
+
+    try:
+        counts = await refresh_source(db, "cisa-kev")
+    except Exception as exc:
+        logger.error("kev_sync_failed", error=str(exc))
+        raise HTTPException(status_code=502, detail=f"CISA KEV refresh failed: {exc}")
+    return {"status": "success", "source": "cisa-kev", **counts}
 
 # ---------------------------------------------------------------------------
 # Integrations
 # ---------------------------------------------------------------------------
 
+def _integration_status_dict(row: Integration) -> dict:
+    return {
+        "id": str(row.id),
+        "name": row.name,
+        "connector_key": row.connector_key,
+        "category": row.category.value if hasattr(row.category, "value") else str(row.category),
+        "status": row.status.value if hasattr(row.status, "value") else str(row.status),
+        "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
+        "last_event_at": row.last_event_at.isoformat() if row.last_event_at else None,
+        "events_received": row.events_received,
+        "error_count": row.error_count,
+        "last_error": row.last_error,
+    }
+
+
 @router.get("/integrations/status")
-async def integrations_status():
-    return []
+async def integrations_status(
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(READ_ROLES)),
+):
+    """Live per-tenant integration state from the integrations table."""
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        return []
+    rows = (await db.execute(
+        select(Integration)
+        .where(Integration.tenant_id == tenant_id)
+        .order_by(desc(Integration.updated_at))
+    )).scalars().all()
+    return [_integration_status_dict(r) for r in rows]
 
 @router.post("/integrations/sync")
-async def sync_integrations():
-    logger.info("integrations_sync")
-    return {"status": "success"}
+async def sync_integrations(
+    db: AsyncSession = Depends(get_db),
+    _auth=Depends(require_roles_dual(WRITE_ROLES)),
+):
+    """Re-evaluate integration health from heartbeat freshness and persist it.
+
+    An integration reporting CONNECTED whose last_seen_at is stale is moved
+    to DEGRADED; the response reports exactly what changed. This replaces
+    the old stub that returned success while doing nothing.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    tenant_id = current_tenant_id.get()
+    if tenant_id is None:
+        raise HTTPException(status_code=403, detail="Tenant context required")
+    rows = (await db.execute(
+        select(Integration).where(Integration.tenant_id == tenant_id)
+    )).scalars().all()
+    stale_after = datetime.now(timezone.utc) - timedelta(minutes=15)
+    updated = 0
+    for row in rows:
+        if row.status == IntegrationStatus.CONNECTED:
+            last_seen = row.last_seen_at
+            if last_seen is not None and last_seen.tzinfo is None:
+                last_seen = last_seen.replace(tzinfo=timezone.utc)
+            if last_seen is None or last_seen < stale_after:
+                row.status = IntegrationStatus.DEGRADED
+                updated += 1
+    if updated:
+        await db.commit()
+    logger.info("integrations_sync", tenant_id=tenant_id, checked=len(rows), updated=updated)
+    return {
+        "status": "success",
+        "checked": len(rows),
+        "updated": updated,
+        "integrations": [_integration_status_dict(r) for r in rows],
+    }
