@@ -1,16 +1,18 @@
 name: SOC AI Evaluation Suite
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
   schedule:
     - cron: '0 2 * * *' # Run nightly at 2:00 AM
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   evaluate:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     services:
       postgres:

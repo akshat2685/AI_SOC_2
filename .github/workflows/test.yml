@@ -2,17 +2,28 @@ name: Test Suite
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, mvp-live ]
   pull_request:
     branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      run_cloud_tests:
+        description: 'Run the heavy Kind/Docker cloud smoke test'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    # Hosted macOS/Windows runners bill at 10x/2x and burned the private-repo
+    # Actions quota. The backend suite is platform-independent; keep the
+    # automatic gate on Ubuntu and run cross-platform checks manually when needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -25,7 +36,6 @@ jobs:
       - name: Free disk space (Linux)
         # Same heavy ML/CUDA dependency set as the eval suite; keep Linux
         # runners clear of the Errno 28 seen on ubuntu-latest.
-        if: runner.os == 'Linux'
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force 2>/dev/null || true
@@ -39,9 +49,6 @@ jobs:
           pip install --no-cache-dir -r backend/app/requirements.txt
           pip install --no-cache-dir -r intelligence_engine/requirements.txt
           pip install --no-cache-dir boto3 pytest pytest-asyncio pytest-cov httpx slowapi python-json-logger structlog alembic fpdf2 psycopg2-binary asyncpg prometheus-client PyJWT redis responses mock faker psutil opentelemetry-api opentelemetry-sdk greenlet
-
-
-
 
       - name: Run Pytest Suite
         env:
@@ -61,9 +68,13 @@ jobs:
         with:
           files: ./coverage.xml
 
-
   cloud-tests:
+    # Heavy Kind + Docker image builds were making the whole Test Suite red
+    # (runner disk pressure) and consuming large hosted minutes. Keep this as
+    # an explicit manual check instead of a per-push gate.
+    if: github.event_name == 'workflow_dispatch' && inputs.run_cloud_tests
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -91,7 +102,7 @@ jobs:
       - name: Run Smoke Test on Cluster
         run: |
           kubectl cluster-info
-          
+
           # Create deployment and service for backend
           cat <<EOF | kubectl apply -f -
           apiVersion: apps/v1
@@ -149,12 +160,12 @@ jobs:
               port: 8000
               targetPort: 8000
           EOF
-          
+
           # Wait for deployment to be available
           echo "Waiting for backend deployment to be available..."
           kubectl wait --for=condition=available deployment/backend-smoke-test --timeout=120s || \
             (kubectl get pods -o wide -A; kubectl describe deployment backend-smoke-test; kubectl logs -l app=backend --all-containers; exit 1)
-          
+
           # Port-forward service and check health with retry loop
           echo "Port-forwarding backend service and checking health..."
           kubectl port-forward svc/backend-smoke-test 8000:8000 >/tmp/portforward.log 2>&1 &
