@@ -61,6 +61,13 @@ class Tenant(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Autonomous-response posture: 'dry_run' (observe, never contain),
+    # 'approvals_only' (proposals go to the approval queue), 'auto_contain'
+    # (rules-based HIGH/CRITICAL + conf>=80 may auto-contain). New tenants
+    # default to dry_run; see migration 0012.
+    response_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="dry_run")
+    # Sensor command-poll cadence for this tenant's fleet (seconds).
+    poll_interval_s: Mapped[int] = mapped_column(Integer(), nullable=False, default=30)
 
     users: Mapped[List["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
     incidents: Mapped[List["Incident"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
