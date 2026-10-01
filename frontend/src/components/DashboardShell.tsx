@@ -21,7 +21,8 @@ import {
   ShieldCheck,
   Rocket,
   Plug,
-  MonitorSmartphone
+  MonitorSmartphone,
+  Swords
 } from 'lucide-react';
 
 interface ShellProps {
@@ -269,6 +270,7 @@ export default function DashboardShell({ children }: ShellProps) {
       label: 'Operate',
       items: [
         { id: 'soc', label: 'Command Center', icon: Shield },
+        { id: 'twin', label: 'Digital Twin', icon: Swords },
         { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
         { id: 'endpoints', label: 'Endpoints', icon: MonitorSmartphone },
         { id: 'incidents', label: 'Incidents', icon: AlertTriangle },

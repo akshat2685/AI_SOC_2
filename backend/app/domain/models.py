@@ -589,6 +589,42 @@ class TrainingFeedback(Base):
     tenant: Mapped[Tenant] = relationship()
 
 
+class MLRetrainRun(Base):
+    """One automatic gated-retrain attempt (see app/ml/auto_retrain.py).
+
+    The self-learning loop's audit trail: every time the auto-retrain
+    evaluator decided enough new training_feedback rows had accumulated,
+    the gated retrain ran and its outcome landed here — pass or fail.
+    Global table (models are global, not tenant-scoped). A gate failure
+    or an error NEVER replaces the serving artifacts; status says why.
+    """
+
+    __tablename__ = "ml_retrain_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    # "sparring_pass" | "manual" | "startup" — what evaluated the trigger.
+    trigger: Mapped[str] = mapped_column(String(30), index=True)
+    # "passed" | "gate_failed" | "no_feedback" | "no_baseline" | "error"
+    status: Mapped[str] = mapped_column(String(20), index=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    # training_feedback totals at evaluation time.
+    feedback_rows_total: Mapped[int] = mapped_column(default=0)
+    feedback_rows_new: Mapped[int] = mapped_column(default=0)
+    feedback_by_source: Mapped[dict] = mapped_column(JSON, default=dict)
+    model_version_before: Mapped[Optional[str]] = mapped_column(
+        String(80), nullable=True)
+    model_version_after: Mapped[Optional[str]] = mapped_column(
+        String(80), nullable=True)
+    triage_accuracy: Mapped[Optional[float]] = mapped_column(nullable=True)
+    anomaly_fpr: Mapped[Optional[float]] = mapped_column(nullable=True)
+    gate_failures: Mapped[list] = mapped_column(JSON, default=list)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    elapsed_seconds: Mapped[Optional[float]] = mapped_column(nullable=True)
+
+
 # Threat-intel IoC model lives in app.intel.models (global table, not
 # tenant-scoped). Re-exported lazily via PEP 562: an eager import here would
 # be circular, because app.intel.models itself needs Base from this module.
