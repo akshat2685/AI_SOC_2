@@ -414,4 +414,31 @@ export const api = {
   listAgents: async (): Promise<any> => {
     return request('/api/v1/agents');
   },
+
+  // Digital Twin — REAL sparring engine (backend/app/sparring).
+  // Distinct from the /digital_twin/* stub simulation above: these runs
+  // score simulated ATT&CK techniques + live threat-intel scenarios
+  // against the actual detection engine, and evasions feed training.
+  getSparringRuns: async (limit: number = 20): Promise<any> => {
+    return request(`/sparring/runs?limit=${limit}`);
+  },
+
+  runSparring: async (): Promise<any> => {
+    return request('/sparring/run', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  },
+
+  getSparringCoverage: async (): Promise<any> => {
+    return request('/sparring/coverage');
+  },
+
+  getTwinScenarios: async (limit: number = 50): Promise<any> => {
+    return request(`/sparring/scenarios?limit=${limit}`);
+  },
+
+  runTwinIntelPass: async (): Promise<any> => {
+    return request('/sparring/intel-pass', { method: 'POST' });
+  },
 };

@@ -136,6 +136,20 @@ async def _one_pass() -> None:
         logger.info("sparring loop: intel pass persisted %d scenarios",
                     len(scenarios))
 
+    # 3. Close the learning loop: if enough new training_feedback rows
+    # have accumulated (this pass's evasions included), run the gated
+    # retrain automatically. Fail-safe by contract — maybe_auto_retrain
+    # never raises, and this guard is belt-and-braces: a retrain problem
+    # must never affect the sparring loop or the API.
+    try:
+        from app.ml.auto_retrain import maybe_auto_retrain
+        outcome = await maybe_auto_retrain(trigger="sparring_pass")
+        logger.info("sparring loop: auto-retrain check -> %s",
+                    outcome.get("status"))
+    except Exception:
+        logger.exception("sparring loop: auto-retrain check raised "
+                         "(contained)")
+
 
 async def _first_tenant_id(db) -> int | None:
     from sqlalchemy import select

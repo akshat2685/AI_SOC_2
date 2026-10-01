@@ -8,9 +8,11 @@ import json
 import os
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_roles_dual
 from app.domain.models import RoleEnum
+from app.infrastructure.database import get_service_db
 from app.ml import inference as ml
 
 router = APIRouter()
@@ -27,9 +29,17 @@ def _report() -> dict:
 
 
 @router.get("/ml/models")
-async def ml_models(_auth=Depends(require_roles_dual(READ_ROLES))):
-    """Model inventory: availability, version, training metrics, provenance."""
-    return {
+async def ml_models(_auth=Depends(require_roles_dual(READ_ROLES)),
+                    db: AsyncSession = Depends(get_service_db)):
+    """Model inventory: availability, version, training metrics, provenance.
+
+    Also reports the self-learning loop's state (app.ml.auto_retrain):
+    how many feedback rows exist, how many are new since the last
+    retrain, and the recorded history of automatic retrain attempts.
+    The retraining block degrades to {"status": "unavailable"} if the
+    DB read fails — the model inventory itself must never 500 on it.
+    """
+    payload = {
         "available": ml.models_available(),
         "model_version": ml.MODEL_VERSION,
         "trained_on": ml.TRAINED_ON,
@@ -37,6 +47,12 @@ async def ml_models(_auth=Depends(require_roles_dual(READ_ROLES))):
         "zero_day_note": ml.ZERO_DAY_NOTE,
         "training_report": _report(),
     }
+    try:
+        from app.ml.auto_retrain import retrain_status
+        payload["retraining"] = await retrain_status(db)
+    except Exception:
+        payload["retraining"] = {"status": "unavailable"}
+    return payload
 
 
 @router.post("/ml/analyze")

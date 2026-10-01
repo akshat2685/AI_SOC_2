@@ -12,6 +12,7 @@ import SOCCommandCenter from '@/components/SOCCommandCenter';
 import OnboardingWizard from '@/components/OnboardingWizard';
 import IntegrationsView from '@/components/IntegrationsView';
 import EndpointsView from '@/components/EndpointsView';
+import TwinView from '@/components/TwinView';
 import SaaSPaymentWall from '@/components/SaaSPaymentWall';
 
 export default function Home() {
@@ -41,6 +42,8 @@ export default function Home() {
         return <IntegrationsView />;
       case 'endpoints':
         return <EndpointsView />;
+      case 'twin':
+        return <TwinView />;
       case 'incidents':
         return <IncidentsView />;
       case 'approvals':
