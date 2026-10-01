@@ -973,14 +973,32 @@ def _handle_block_ip(params: dict) -> tuple[bool, dict]:
         return _refused(f"not a valid IP: {ip[:64]!r}")
     if not addr.is_global:
         return _refused("only public IPs can be blocked")
-    if sys.platform != "win32":
-        return False, {"error": "block_ip is Windows-only (netsh) on this build"}
-    argv = ["netsh", "advfirewall", "firewall", "add", "rule",
-            f"name=EDYSOR-block-{ip}", "dir=out", "action=block",
-            f"remoteip={ip}"]
-    ok, detail = _run_argv(argv)
-    detail["ip"] = ip
-    return ok, detail
+    if sys.platform == "win32":
+        argv = ["netsh", "advfirewall", "firewall", "add", "rule",
+                f"name=EDYSOR-block-{ip}", "dir=out", "action=block",
+                f"remoteip={ip}"]
+        ok, detail = _run_argv(argv)
+        detail["ip"] = ip
+        return ok, detail
+    if sys.platform.startswith("linux"):
+        # iptables OUTPUT rule dropping all traffic to the malicious IP.
+        # Needs root / CAP_NET_ADMIN; without it iptables errors and the
+        # failure is acked honestly, never faked. Idempotent: an existing
+        # rule counts as success. The undo command rides in the ack detail
+        # so an operator can lift the block by hand.
+        check = ["iptables", "-C", "OUTPUT", "-d", ip, "-j", "DROP"]
+        present, _ = _run_argv(check)
+        if present:
+            return True, {"ip": ip, "already_blocked": True,
+                          "rule": f"iptables OUTPUT -d {ip} -j DROP",
+                          "undo": f"iptables -D OUTPUT -d {ip} -j DROP"}
+        argv = ["iptables", "-A", "OUTPUT", "-d", ip, "-j", "DROP"]
+        ok, detail = _run_argv(argv)
+        detail["ip"] = ip
+        detail["rule"] = f"iptables OUTPUT -d {ip} -j DROP"
+        detail["undo"] = f"iptables -D OUTPUT -d {ip} -j DROP"
+        return ok, detail
+    return False, {"error": f"block_ip is not implemented on {sys.platform} on this build"}
 
 
 def _handle_quarantine_file(params: dict, config_path: Path) -> tuple[bool, dict]:
